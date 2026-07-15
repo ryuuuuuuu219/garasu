@@ -294,15 +294,15 @@ namespace GlassShooter.Gameplay
                 return;
             }
 
-            // 以降のクラック計算は必ずローカル座標を使う。
-            Vector2 impactLocalPosition = transform.InverseTransformPoint(impactWorldPosition);
-
-            // 今回は△弾だけを対象とし、□弾用の状態と処理入口はそのまま残す。
-            if (bulletStatus.Type != BulletType.CrackGenerator)
+            // 縮小後の形状に対してクラックを計算する。
+            // 破砕前後のどちらでも、追撃分だけ最終回収面積が減る。
+            if (!ApplySizeMultiplier(bulletStatus.ContactSizeMultiplier))
             {
-                ApplySizeMultiplier(bulletStatus.ContactSizeMultiplier);
                 return;
             }
+
+            // 以降のクラック計算は必ずローカル座標を使う。
+            Vector2 impactLocalPosition = transform.InverseTransformPoint(impactWorldPosition);
 
             if (TryGetComponent(out GlassFragment _) &&
                 glassStatus != null &&
@@ -335,12 +335,12 @@ namespace GlassShooter.Gameplay
             TrySeparateCompletedPath();
         }
 
-        private void ApplySizeMultiplier(float multiplier)
+        private bool ApplySizeMultiplier(float multiplier)
         {
             multiplier = Mathf.Max(0f, multiplier);
             if (Mathf.Approximately(multiplier, 1f) || outline == null || outline.Length < 3)
             {
-                return;
+                return true;
             }
 
             Vector2 center = CalculateCentroid(outline);
@@ -363,7 +363,7 @@ namespace GlassShooter.Gameplay
             if (scaledArea <= minimumArea + GeometryEpsilon)
             {
                 Destroy(gameObject);
-                return;
+                return false;
             }
 
             if (outlineLineRenderer != null)
@@ -381,6 +381,7 @@ namespace GlassShooter.Gameplay
                     : Mathf.Max(0.05f, scaledArea);
             }
             RenderCracks();
+            return true;
         }
 
         private static void ScalePoints(Vector2[] points, Vector2 center, float multiplier)
@@ -2345,7 +2346,7 @@ namespace GlassShooter.Gameplay
             }
 
             float multiplier = bulletStatus.ContactSizeMultiplier;
-            if (bulletStatus.Type == BulletType.CrackOpener && !Mathf.Approximately(multiplier, 1f))
+            if (!Mathf.Approximately(multiplier, 1f))
             {
                 Destroy(gameObject);
             }

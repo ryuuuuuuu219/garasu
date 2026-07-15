@@ -201,7 +201,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d37644087ee64cf48ad55c8dd8ec9e1b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GlassShooter.Gameplay.BulletStatus
-  bulletType: 0
   mass: 1
   initialSpeed: 12
   currentVelocity: {x: 0, y: 12}
@@ -210,10 +209,7 @@ MonoBehaviour:
   tipCrossSectionArea: 0.05
   stoppingDistance: 0.1
   crackConversionEfficiency: 0.5
-  forceDirection: {x: 0, y: 1}
-  effectRadius: 1
-  distanceAttenuation: 1
-  effectDuration: 0.2
+  contactSizeMultiplier: 0.904382
 --- !u!4 &848862845
 Transform:
   m_ObjectHideFlags: 0

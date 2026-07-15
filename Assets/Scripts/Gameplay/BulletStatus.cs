@@ -1,39 +1,29 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 namespace GlassShooter.Gameplay
 {
-    public enum BulletType
-    {
-        CrackGenerator,
-        CrackOpener
-    }
-
     /// <summary>
-    /// 企画書で定義された△弾／□弾の着弾計算用ステータスです。
+    /// クラック形成と縮小を同時に行う破砕弾の着弾計算用ステータスです。
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class BulletStatus : MonoBehaviour
     {
-        [Header("Common")]
-        [SerializeField] private BulletType bulletType = BulletType.CrackGenerator;
+        [Header("Ballistics")]
         [SerializeField, Min(0f)] private float mass = 1f;
         [SerializeField, Min(0f)] private float initialSpeed = 12f;
         [SerializeField] private Vector2 currentVelocity = new Vector2(0f, 12f);
         [SerializeField, Min(0f)] private float fireRate = 6.25f;
         [SerializeField, Min(1)] private int simultaneousShotCount = 1;
 
-        [Header("Triangle Bullet - Crack Generator")]
+        [Header("Fracture")]
         [SerializeField, Min(0.0001f)] private float tipCrossSectionArea = 0.05f;
         [SerializeField, Min(0.0001f)] private float stoppingDistance = 0.1f;
         [SerializeField, Range(0f, 1f)] private float crackConversionEfficiency = 0.5f;
 
-        [Header("Square Bullet - Crack Opener")]
-        [SerializeField] private Vector2 forceDirection = Vector2.up;
-        [SerializeField, Min(0f)] private float effectRadius = 1f;
-        [SerializeField, Min(0f)] private float distanceAttenuation = 1f;
-        [SerializeField, Min(0f)] private float effectDuration = 0.2f;
+        [Header("Erosion")]
+        [SerializeField, Range(0f, 1f)]
+        private float contactSizeMultiplier = 0.904382f;
 
-        public BulletType Type => bulletType;
         public float Mass => mass;
         public float InitialSpeed => initialSpeed;
         public Vector2 CurrentVelocity => currentVelocity;
@@ -42,22 +32,15 @@ namespace GlassShooter.Gameplay
         public float TipCrossSectionArea => tipCrossSectionArea;
         public float StoppingDistance => stoppingDistance;
         public float CrackConversionEfficiency => crackConversionEfficiency;
-        public Vector2 ForceDirection => forceDirection;
-        public float EffectRadius => effectRadius;
-        public float DistanceAttenuation => distanceAttenuation;
-        public float EffectDuration => effectDuration;
 
         /// <summary>
-        /// 接触対象へ適用する線形サイズ倍率です。
-        /// △弾は等倍、□弾は (1 - 10^-2)^10、約0.9044倍にします。
+        /// 着弾ごとに対象へ適用する線形サイズ倍率です。
+        /// 初期値は旧□弾の (1 - 10^-2)^10、約0.9044倍です。
         /// </summary>
-        public float ContactSizeMultiplier => bulletType == BulletType.CrackGenerator
-            ? 1f
-            : Mathf.Pow(1f - Mathf.Pow(10f, -2f), 10f);
+        public float ContactSizeMultiplier => contactSizeMultiplier;
 
-        public void statusCopy(BulletStatus original)
+        public void CopyFrom(BulletStatus original)
         {
-            bulletType = original.Type;
             mass = original.Mass;
             initialSpeed = original.InitialSpeed;
             currentVelocity = original.CurrentVelocity;
@@ -66,11 +49,7 @@ namespace GlassShooter.Gameplay
             tipCrossSectionArea = original.TipCrossSectionArea;
             stoppingDistance = original.StoppingDistance;
             crackConversionEfficiency = original.CrackConversionEfficiency;
-            forceDirection = original.ForceDirection;
-            effectRadius = original.EffectRadius;
-            distanceAttenuation = original.DistanceAttenuation;
-            effectDuration = original.EffectDuration;
-
+            contactSizeMultiplier = original.ContactSizeMultiplier;
         }
 
         /// <summary>着弾直前の速度を弾の移動処理から反映します。</summary>
@@ -93,22 +72,7 @@ namespace GlassShooter.Gameplay
             simultaneousShotCount = Mathf.Max(1, simultaneousShotCount);
             tipCrossSectionArea = Mathf.Max(0.0001f, tipCrossSectionArea);
             stoppingDistance = Mathf.Max(0.0001f, stoppingDistance);
-            effectRadius = Mathf.Max(0f, effectRadius);
-            distanceAttenuation = Mathf.Max(0f, distanceAttenuation);
-            effectDuration = Mathf.Max(0f, effectDuration);
-
-            if (forceDirection.sqrMagnitude > 0f)
-            {
-                forceDirection.Normalize();
-            }
+            contactSizeMultiplier = Mathf.Clamp01(contactSizeMultiplier);
         }
-
-        public void ModeChange()
-        {
-            bulletType = 
-            bulletType == BulletType.CrackGenerator ? 
-            BulletType.CrackOpener : BulletType.CrackGenerator;
-        }
-
     }
 }

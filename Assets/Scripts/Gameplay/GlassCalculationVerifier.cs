@@ -100,7 +100,7 @@ namespace Gameplay
 
             var builder = new StringBuilder(2048);
             builder.AppendLine("【弾】")
-                .AppendLine($"種類: {sourceBullet.Type}")
+                .AppendLine("種類: 破砕弾（クラック形成＋縮小）")
                 .AppendLine($"質量: {sourceBullet.Mass:0.###}")
                 .AppendLine($"BulletStatus初速: {configuredSpeed:0.###}")
                 .AppendLine($"Projectile実移動速度: {actualSpeed:0.###}")
@@ -138,8 +138,7 @@ namespace Gameplay
                 .AppendLine($"発射レート: {sourceBullet.FireRate:0.###}")
                 .AppendLine($"同時発射数: {sourceBullet.SimultaneousShotCount}")
                 .AppendLine($"弾頭断面積 / 停止距離: {sourceBullet.TipCrossSectionArea:0.###} / {sourceBullet.StoppingDistance:0.###}")
-                .AppendLine($"□弾 効果半径 / 距離減衰 / 効果時間: {sourceBullet.EffectRadius:0.###} / {sourceBullet.DistanceAttenuation:0.###} / {sourceBullet.EffectDuration:0.###}")
-                .AppendLine($"□弾 接触サイズ倍率: {sourceBullet.ContactSizeMultiplier:0.####}")
+                .AppendLine($"着弾時の接触サイズ倍率: {sourceBullet.ContactSizeMultiplier:0.####}")
                 .AppendLine($"厚さ / 密度 / 質量: {glass.Thickness:0.###} / {glass.Density:0.###} / {glass.Mass:0.###}")
                 .AppendLine($"クラック開始抵抗 / 伝播抵抗: {glass.CrackInitiationResistance:0.###} / {glass.CrackPropagationResistance:0.###}")
                 .AppendLine($"分岐閾値 / 分岐コスト: {glass.BranchThreshold:0.###} / {glass.BranchCost:0.###}")

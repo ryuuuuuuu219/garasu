@@ -1,13 +1,10 @@
-﻿using PolygonRendering;
 using PolygonRendering.Input;
-using Unity.VisualScripting;
 using UnityEngine;
-using UnityEngine.Rendering;
 
 namespace GlassShooter.Gameplay
 {
     /// <summary>
-    /// プレイヤーの左右移動と弾の発射を担当します。
+    /// プレイヤーの移動と統合破砕弾の発射を担当します。
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(KeyboardInputState))]
@@ -20,16 +17,14 @@ namespace GlassShooter.Gameplay
         [SerializeField] private Projectile projectilePrefab = null;
         [SerializeField] private Transform firePoint = null;
         [SerializeField, Min(0.01f)] private float fireInterval = 0.16f;
+        [SerializeField] private BulletStatus bulletStatus;
+
+        [SerializeField] private Vector2 Movelimitmin;
+        [SerializeField] private Vector2 Movelimitmax;
 
         private KeyboardInputState inputState;
         private float nextFireTime;
-
-        [SerializeField] private BulletStatus bulletStatus;
-        BulletType bulletType => bulletStatus.Type;
-
         private LineRenderer lr;
-
-        [SerializeField] Vector2 Movelimitmin, Movelimitmax;
 
         public Vector2 MoveLimitMin => Movelimitmin;
         public Vector2 MoveLimitMax => Movelimitmax;
@@ -42,7 +37,6 @@ namespace GlassShooter.Gameplay
         {
             inputState = GetComponent<KeyboardInputState>();
 
-            // LineRendererコンポーネント用の GameObjectを作成して子オブジェクトとして追加
             GameObject child = new GameObject("LineRenderer");
             child.transform.SetParent(transform);
             child.transform.localPosition = Vector3.zero;
@@ -55,18 +49,12 @@ namespace GlassShooter.Gameplay
         private void Update()
         {
             Move();
-            RenderingLimit();
+            RenderMovementLimit();
 
-            if (inputState.SpaceDown
-                && Time.time >= nextFireTime)
+            if (inputState.SpaceDown && Time.time >= nextFireTime)
             {
                 Fire();
             }
-            if (inputState.LeftShiftDown)
-            {
-                ModeChange();
-            }
-
         }
 
         private void Move()
@@ -78,15 +66,7 @@ namespace GlassShooter.Gameplay
             transform.position = position;
         }
 
-        private void ModeChange()
-        {
-            if (bulletStatus != null)
-            {
-                bulletStatus.ModeChange();
-            }
-        }
-
-        void RenderingLimit()
+        private void RenderMovementLimit()
         {
             lr.positionCount = 4;
             lr.SetPosition(0, new Vector3(Movelimitmin.x, Movelimitmin.y, 0f));
@@ -97,44 +77,26 @@ namespace GlassShooter.Gameplay
             lr.startColor = Color.white;
             lr.endColor = Color.white;
             lr.useWorldSpace = true;
-
         }
 
         private void Fire()
         {
-            if (projectilePrefab == null)
+            if (projectilePrefab == null || bulletStatus == null)
             {
                 return;
             }
 
-            Vector3 spawnPosition = firePoint != null ? firePoint.position : transform.position;
-
-            var projectile = Instantiate(projectilePrefab, spawnPosition, Quaternion.identity);
-            int projectileVertex = bulletType switch
-            {
-                BulletType.CrackGenerator => 3,
-                BulletType.CrackOpener => 4,
-                _ => 3
-            };
-            bool pointVertexVertically = bulletType switch
-            {
-                BulletType.CrackGenerator => true,
-                BulletType.CrackOpener => false,
-                _ => true
-            };
-            projectile.TryGetComponent(out RegularPolygonLineRenderer polygonRenderer);
-            polygonRenderer.VertexCount = projectileVertex;
-            polygonRenderer.PointVertexVertically = pointVertexVertically;
-
-            if(bulletStatus == null)
-            {
-                return;
-            }
-
-            BulletStatus original = bulletStatus;
-            BulletStatus copy = projectile.TryGetComponent(out BulletStatus script) ? script : projectile.AddComponent<BulletStatus>();
-
-            copy.statusCopy(original);
+            Vector3 spawnPosition = firePoint != null
+                ? firePoint.position
+                : transform.position;
+            Projectile projectile = Instantiate(
+                projectilePrefab,
+                spawnPosition,
+                Quaternion.identity);
+            BulletStatus copy = projectile.TryGetComponent(out BulletStatus existingStatus)
+                ? existingStatus
+                : projectile.gameObject.AddComponent<BulletStatus>();
+            copy.CopyFrom(bulletStatus);
 
             nextFireTime = Time.time + fireInterval;
         }
