@@ -148,6 +148,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c61f84b7f1d48d74dac01dfa58e67cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Gameplay.enemyspowner
+  glassStatus: {fileID: 848862846}
 --- !u!4 &115280593
 Transform:
   m_ObjectHideFlags: 0
@@ -178,6 +179,7 @@ GameObject:
   m_Component:
   - component: {fileID: 848862845}
   - component: {fileID: 848862844}
+  - component: {fileID: 848862846}
   m_Layer: 0
   m_Name: BulletStatus
   m_TagString: Untagged
@@ -225,6 +227,45 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &848862846
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 848862843}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8da572c3327a5974187e4959c6353a75, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GlassShooter.Gameplay.GlassStatus
+  thickness: 1
+  density: 1
+  mass: 1
+  gravityMultiplier: 1
+  elasticity: 0.1
+  impactAttenuationRate: 0.1
+  crackInitiationResistance: 10
+  crackPropagationResistance: 1
+  branchThreshold: 10
+  branchCost: 1
+  fragmentSeparationResistance: 1
+  initialCrackCount: 0
+  internalDefectDensity: 1
+  internalDefectVariation: 0.25
+  minimumInitialVulnerability: 0
+  maximumInitialVulnerability: 1
+  resolution: 8
+  virtualPointCount: 32
+  virtualPointSpacing: 0.5
+  weaknessDistribution: 1
+  outlineShape: 1
+  fixedPositions: []
+  corePosition: {x: 0, y: 0}
+  fixedPositionStrength: 1
+  fragmentAttackMultiplier: 1
+  fragmentFallSpeedMultiplier: 1
+  repairSpeed: 0
 --- !u!1 &1586437419
 GameObject:
   m_ObjectHideFlags: 0

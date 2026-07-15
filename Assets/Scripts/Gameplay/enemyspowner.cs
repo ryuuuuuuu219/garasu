@@ -17,6 +17,15 @@ namespace Gameplay
             public bool IsActive;
         }
 
+        public bool manualTrigger = false;
+
+        void manualTrigger2spown()
+        {
+            if(!manualTrigger) return;
+            manualTrigger = false;
+            SpawnEnemy("Basic", new Vector2(0f, 4f), 0);
+        }
+
         // EnemyTypeに対応する外周頂点を、敵の中心を原点としたローカル座標で返します。
         private Vector2[] GetPositionsForPattern(string enemyType)
         {
@@ -65,7 +74,7 @@ namespace Gameplay
                 {
                     Time = 1f,
                     EnemyType = "Basic",
-                    Positions = new[] { new Vector2(0f, 2f) },
+                    Positions = new[] { new Vector2(0f, 4f) },
                     IsActive = false
                 }
             };
@@ -73,6 +82,7 @@ namespace Gameplay
 
         private void Update()
         {
+            manualTrigger2spown();
             _timer += Time.deltaTime;
 
             for (int patternIndex = 0; patternIndex < _spownPatterns.Length; patternIndex++)

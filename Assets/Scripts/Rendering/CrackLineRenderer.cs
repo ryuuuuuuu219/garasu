@@ -82,6 +82,11 @@ namespace PolygonRendering
             for (int i = 0; i < lineRenderers.Count; i++)
             {
                 LineRenderer renderer = lineRenderers[i];
+                if (renderer == null)
+                {
+                    continue;
+                }
+
                 bool active = i < requiredCount && cracks[i] != null && cracks[i].Length > 0;
                 renderer.enabled = active;
                 if (!active)
@@ -114,14 +119,56 @@ namespace PolygonRendering
 
         private void EnsureRendererCount(int requiredCount)
         {
-            if (lineRenderers.Count == 0 && TryGetComponent(out LineRenderer existing))
+            requiredCount = Mathf.Max(1, requiredCount);
+
+            // Renderer系は同一GameObjectへ複数追加できないため、先頭以外は子Objectで管理する。
+            lineRenderers.Clear();
+            LineRenderer rootRenderer = GetComponent<LineRenderer>();
+            if (rootRenderer != null)
             {
-                lineRenderers.Add(existing);
+                lineRenderers.Add(rootRenderer);
+            }
+
+            for (int childIndex = 0; childIndex < transform.childCount; childIndex++)
+            {
+                Transform child = transform.GetChild(childIndex);
+                if (!child.name.StartsWith("CrackLine_", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                LineRenderer childRenderer = child.GetComponent<LineRenderer>();
+                if (childRenderer != null)
+                {
+                    lineRenderers.Add(childRenderer);
+                }
             }
 
             while (lineRenderers.Count < requiredCount)
             {
-                lineRenderers.Add(gameObject.AddComponent<LineRenderer>());
+                int rendererIndex = lineRenderers.Count;
+                GameObject childObject = new GameObject($"CrackLine_{rendererIndex}");
+                childObject.transform.SetParent(transform, false);
+                LineRenderer created = childObject.AddComponent<LineRenderer>();
+                if (created == null)
+                {
+                    Debug.LogError("Failed to create a child LineRenderer for crack rendering.", this);
+                    if (Application.isPlaying)
+                    {
+                        Destroy(childObject);
+                    }
+                    else
+                    {
+                        DestroyImmediate(childObject);
+                    }
+                    break;
+                }
+
+                if (rootRenderer != null)
+                {
+                    created.sharedMaterial = rootRenderer.sharedMaterial;
+                }
+                lineRenderers.Add(created);
             }
 
             for (int i = 0; i < lineRenderers.Count; i++)
@@ -132,6 +179,11 @@ namespace PolygonRendering
 
         private void ConfigureRenderer(LineRenderer renderer)
         {
+            if (renderer == null)
+            {
+                return;
+            }
+
             renderer.useWorldSpace = false;
             renderer.loop = false;
             renderer.startColor = startColor;

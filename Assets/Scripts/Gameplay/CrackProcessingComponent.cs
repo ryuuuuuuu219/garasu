@@ -241,14 +241,17 @@ namespace GlassShooter.Gameplay
                 return;
             }
 
-            CompleteBulletImpact(other.transform.position, bulletStatus);
+            // Triggerには接触点情報がないため、弾中心をガラス外周へ投影して代表接触点にする。
+            Vector2 projectileLocalPosition = transform.InverseTransformPoint(other.transform.position);
+            Vector2 impactLocalPosition = GetClosestPointOnOutline(projectileLocalPosition);
+            Vector2 impactWorldPosition = transform.TransformPoint(impactLocalPosition);
+            CompleteBulletImpact(impactWorldPosition, bulletStatus);
         }
 
         private void CompleteBulletImpact(Vector2 impactWorldPosition, BulletStatus bulletStatus)
         {
             HandleBulletImpact(impactWorldPosition, bulletStatus);
             Destroy(bulletStatus.gameObject);
-            RenderCracks();
         }
 
         public void HandleBulletImpact(Vector2 impactWorldPosition, BulletStatus bulletStatus)
@@ -968,17 +971,47 @@ namespace GlassShooter.Gameplay
             return false;
         }
 
-        private static bool IsPointOnSegment(Vector2 point, Vector2 start, Vector2 end)
+        private Vector2 GetClosestPointOnOutline(Vector2 point)
+        {
+            if (outline == null || outline.Length < 2)
+            {
+                return point;
+            }
+
+            Vector2 closest = outline[0];
+            float closestDistanceSquared = float.PositiveInfinity;
+            for (int i = 0; i < outline.Length; i++)
+            {
+                Vector2 candidate = ClosestPointOnSegment(
+                    point,
+                    outline[i],
+                    outline[(i + 1) % outline.Length]);
+                float distanceSquared = (point - candidate).sqrMagnitude;
+                if (distanceSquared < closestDistanceSquared)
+                {
+                    closestDistanceSquared = distanceSquared;
+                    closest = candidate;
+                }
+            }
+            return closest;
+        }
+
+        private static Vector2 ClosestPointOnSegment(Vector2 point, Vector2 start, Vector2 end)
         {
             Vector2 edge = end - start;
             float lengthSquared = edge.sqrMagnitude;
             if (lengthSquared <= GeometryEpsilon * GeometryEpsilon)
             {
-                return Approximately(point, start);
+                return start;
             }
 
             float t = Mathf.Clamp01(Vector2.Dot(point - start, edge) / lengthSquared);
-            Vector2 closest = start + edge * t;
+            return start + edge * t;
+        }
+
+        private static bool IsPointOnSegment(Vector2 point, Vector2 start, Vector2 end)
+        {
+            Vector2 closest = ClosestPointOnSegment(point, start, end);
             return (point - closest).sqrMagnitude <= GeometryEpsilon * GeometryEpsilon;
         }
 
@@ -1717,6 +1750,125 @@ namespace GlassShooter.Gameplay
             return true;
         }
 
+        private static Vector2[][] ClipCracksToPolygon(
+            IReadOnlyList<Vector2[]> sourceCracks,
+            IReadOnlyList<Vector2> polygon)
+        {
+            var clippedSegments = new List<Vector2[]>();
+            if (sourceCracks == null || polygon == null || polygon.Count < 3)
+            {
+                return clippedSegments.ToArray();
+            }
+
+            for (int crackIndex = 0; crackIndex < sourceCracks.Count; crackIndex++)
+            {
+                Vector2[] path = sourceCracks[crackIndex];
+                if (path == null || path.Length < 2)
+                {
+                    continue;
+                }
+
+                for (int pointIndex = 0; pointIndex + 1 < path.Length; pointIndex++)
+                {
+                    Vector2 start = path[pointIndex];
+                    Vector2 end = path[pointIndex + 1];
+                    Vector2 direction = end - start;
+                    float lengthSquared = direction.sqrMagnitude;
+                    if (lengthSquared <= GeometryEpsilon * GeometryEpsilon)
+                    {
+                        continue;
+                    }
+
+                    var parameters = new List<float> { 0f, 1f };
+                    for (int edgeIndex = 0; edgeIndex < polygon.Count; edgeIndex++)
+                    {
+                        Vector2 edgeStart = polygon[edgeIndex];
+                        Vector2 edgeEnd = polygon[(edgeIndex + 1) % polygon.Count];
+                        if (!TryGetSegmentIntersection(start, end, edgeStart, edgeEnd, out Vector2 hit))
+                        {
+                            continue;
+                        }
+
+                        float parameter = Mathf.Clamp01(
+                            Vector2.Dot(hit - start, direction) / lengthSquared);
+                        AddUniqueParameter(parameters, parameter);
+                    }
+                    parameters.Sort();
+
+                    // 外周交点で線分を分割し、中点が破片内または外周上の区間だけを残す。
+                    for (int parameterIndex = 0; parameterIndex + 1 < parameters.Count; parameterIndex++)
+                    {
+                        float fromT = parameters[parameterIndex];
+                        float toT = parameters[parameterIndex + 1];
+                        if (toT - fromT <= GeometryEpsilon)
+                        {
+                            continue;
+                        }
+
+                        Vector2 middle = Vector2.Lerp(start, end, (fromT + toT) * 0.5f);
+                        if (!IsPointInsideOrOnPolygon(middle, polygon))
+                        {
+                            continue;
+                        }
+
+                        clippedSegments.Add(new[]
+                        {
+                            Vector2.Lerp(start, end, fromT),
+                            Vector2.Lerp(start, end, toT)
+                        });
+                    }
+                }
+            }
+            return clippedSegments.ToArray();
+        }
+
+        private static void AddUniqueParameter(List<float> parameters, float value)
+        {
+            for (int i = 0; i < parameters.Count; i++)
+            {
+                if (Mathf.Abs(parameters[i] - value) <= GeometryEpsilon)
+                {
+                    return;
+                }
+            }
+            parameters.Add(value);
+        }
+
+        private static bool IsPointInsideOrOnPolygon(
+            Vector2 point,
+            IReadOnlyList<Vector2> polygon)
+        {
+            for (int i = 0; i < polygon.Count; i++)
+            {
+                if (IsPointOnSegment(point, polygon[i], polygon[(i + 1) % polygon.Count]))
+                {
+                    return true;
+                }
+            }
+
+            bool inside = false;
+            for (int i = 0, j = polygon.Count - 1; i < polygon.Count; j = i++)
+            {
+                Vector2 current = polygon[i];
+                Vector2 previous = polygon[j];
+                bool crossesRay = (current.y > point.y) != (previous.y > point.y);
+                if (!crossesRay)
+                {
+                    continue;
+                }
+
+                float intersectionX = (previous.x - current.x)
+                    * (point.y - current.y)
+                    / (previous.y - current.y)
+                    + current.x;
+                if (point.x < intersectionX)
+                {
+                    inside = !inside;
+                }
+            }
+            return inside;
+        }
+
         private void CreateFragment(Vector2[] region, int pieceIndex)
         {
             Vector2 centroid = CalculateCentroid(region);
@@ -1725,6 +1877,11 @@ namespace GlassShooter.Gameplay
             {
                 centeredRegion[i] = region[i] - centroid;
             }
+            float fragmentArea = Mathf.Abs(SignedArea(centeredRegion));
+            float minimumBreakableArea = glassStatus != null
+                ? glassStatus.MinimumBreakableArea
+                : 0.04f;
+            bool canBreakAgain = fragmentArea + GeometryEpsilon >= minimumBreakableArea;
 
             GameObject fragment = new GameObject($"{name}_Fragment_{pieceIndex}");
             fragment.transform.SetParent(transform.parent, false);
@@ -1746,18 +1903,74 @@ namespace GlassShooter.Gameplay
             }
             renderer.SetOutline(centeredRegion);
 
+            Vector2[][] fragmentCracks = ClipCracksToPolygon(cracks, region);
+            for (int crackIndex = 0; crackIndex < fragmentCracks.Length; crackIndex++)
+            {
+                for (int pointIndex = 0; pointIndex < fragmentCracks[crackIndex].Length; pointIndex++)
+                {
+                    fragmentCracks[crackIndex][pointIndex] -= centroid;
+                }
+            }
+
+            if (fragmentCracks.Length > 0 || canBreakAgain)
+            {
+                GameObject crackObject = new GameObject("CrackLineRenderer");
+                crackObject.transform.SetParent(fragment.transform, false);
+                CrackLineRenderer fragmentCrackRenderer = crackObject.AddComponent<CrackLineRenderer>();
+                LineRenderer fragmentCrackLine = crackObject.GetComponent<LineRenderer>();
+                if (crackLineRenderer != null &&
+                    crackLineRenderer.TryGetComponent(out LineRenderer sourceCrackLine))
+                {
+                    fragmentCrackLine.sharedMaterial = sourceCrackLine.sharedMaterial;
+                }
+                else
+                {
+                    fragmentCrackLine.material = new Material(Shader.Find("Sprites/Default"));
+                }
+                fragmentCrackRenderer.SetCracks(fragmentCracks);
+            }
+
             PolygonCollider2D collider = fragment.AddComponent<PolygonCollider2D>();
             collider.points = centeredRegion;
 
+            GlassStatus fragmentStatus = fragment.AddComponent<GlassStatus>();
+            fragmentStatus.CopyFrom(glassStatus);
+
             Rigidbody2D body = fragment.AddComponent<Rigidbody2D>();
             body.bodyType = RigidbodyType2D.Dynamic;
-            body.gravityScale = glassStatus != null ? glassStatus.GravityMultiplier : 1f;
-            body.mass = glassStatus != null
-                ? glassStatus.CalculateMass(SignedArea(centeredRegion))
-                : Mathf.Max(0.05f, Mathf.Abs(SignedArea(centeredRegion)));
-            body.angularVelocity = UnityEngine.Random.Range(-90f, 90f);
+            body.gravityScale = fragmentStatus.GravityMultiplier;
+            body.mass = fragmentStatus.CalculateMass(fragmentArea);
+
+            if (TryGetComponent(out Rigidbody2D sourceBody))
+            {
+                body.linearVelocity = sourceBody.linearVelocity;
+                body.angularVelocity = sourceBody.angularVelocity;
+            }
+            else
+            {
+                body.angularVelocity = UnityEngine.Random.Range(-90f, 90f);
+            }
 
             fragment.AddComponent<GlassFragment>();
+
+            if (canBreakAgain)
+            {
+                CrackProcessingComponent fragmentProcessing = fragment.AddComponent<CrackProcessingComponent>();
+                CopyGrowthSettingsTo(fragmentProcessing, pieceIndex);
+                fragmentProcessing.Initialize(centeredRegion, fragmentCracks);
+            }
+        }
+
+        private void CopyGrowthSettingsTo(CrackProcessingComponent target, int pieceIndex)
+        {
+            target.crackRandomSeed = unchecked(crackRandomSeed * 397 + pieceIndex + 1);
+            target.surfaceFlawMinimumSpacing = surfaceFlawMinimumSpacing;
+            target.crackTipDetectionRadius = crackTipDetectionRadius;
+            target.baseFractureResistance = baseFractureResistance;
+            target.minimumScanRadius = minimumScanRadius;
+            target.maximumScanRadius = maximumScanRadius;
+            target.minimumVulnerabilityCostMultiplier = minimumVulnerabilityCostMultiplier;
+            target.angleCostWeight = angleCostWeight;
         }
 
         private static Vector2 CalculateCentroid(IReadOnlyList<Vector2> polygon)
@@ -1827,6 +2040,24 @@ namespace GlassShooter.Gameplay
     internal sealed class GlassFragment : MonoBehaviour
     {
         [SerializeField] private float destroyBelowY = -8f;
+
+        private void OnTriggerEnter2D(Collider2D other)
+        {
+            ConsumeBullet(other.GetComponentInParent<BulletStatus>());
+        }
+
+        private void OnCollisionEnter2D(Collision2D collision)
+        {
+            ConsumeBullet(collision.collider.GetComponentInParent<BulletStatus>());
+        }
+
+        private void ConsumeBullet(BulletStatus bulletStatus)
+        {
+            if (bulletStatus != null && !TryGetComponent(out CrackProcessingComponent _))
+            {
+                Destroy(bulletStatus.gameObject);
+            }
+        }
 
         private void FixedUpdate()
         {

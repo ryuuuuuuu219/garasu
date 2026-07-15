@@ -66,6 +66,7 @@ namespace GlassShooter.Gameplay
         [SerializeField, Min(0f)] private float fixedPositionStrength = 1f;
         [SerializeField, Min(0f)] private float fragmentAttackMultiplier = 1f;
         [SerializeField, Min(0f)] private float fragmentFallSpeedMultiplier = 1f;
+        [SerializeField, Min(0f)] private float minimumBreakableArea = 0.04f;
         [SerializeField, Min(0f)] private float repairSpeed = 0f;
 
         public float Thickness => thickness;
@@ -94,6 +95,7 @@ namespace GlassShooter.Gameplay
         public float FixedPositionStrength => fixedPositionStrength;
         public float FragmentAttackMultiplier => fragmentAttackMultiplier;
         public float FragmentFallSpeedMultiplier => fragmentFallSpeedMultiplier;
+        public float MinimumBreakableArea => minimumBreakableArea;
         public float RepairSpeed => repairSpeed;
 
         /// <summary>面積から、厚さと密度を反映した破片質量を求めます。</summary>
@@ -180,6 +182,7 @@ namespace GlassShooter.Gameplay
             fixedPositionStrength = source.fixedPositionStrength;
             fragmentAttackMultiplier = source.fragmentAttackMultiplier;
             fragmentFallSpeedMultiplier = source.fragmentFallSpeedMultiplier;
+            minimumBreakableArea = source.minimumBreakableArea;
             repairSpeed = source.repairSpeed;
         }
 
@@ -195,6 +198,7 @@ namespace GlassShooter.Gameplay
             resolution = Mathf.Max(1, resolution);
             virtualPointCount = Mathf.Max(0, virtualPointCount);
             virtualPointSpacing = Mathf.Max(0.0001f, virtualPointSpacing);
+            minimumBreakableArea = Mathf.Max(0f, minimumBreakableArea);
             minimumInitialVulnerability = Mathf.Clamp01(minimumInitialVulnerability);
             maximumInitialVulnerability = Mathf.Clamp01(maximumInitialVulnerability);
             if (minimumInitialVulnerability > maximumInitialVulnerability)
