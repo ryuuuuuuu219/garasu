@@ -49,6 +49,7 @@ namespace GlassShooter.Gameplay
 
         public void statusCopy(BulletStatus original)
         {
+            bulletType = original.Type;
             mass = original.Mass;
             initialSpeed = original.InitialSpeed;
             currentVelocity = original.CurrentVelocity;

@@ -49,7 +49,24 @@ namespace GlassShooter.Gameplay
                 ? collision.GetContact(0).point
                 : (Vector2)collision.transform.position;
 
+            CompleteBulletImpact(impactWorldPosition, bulletStatus);
+        }
+
+        private void OnTriggerEnter2D(Collider2D other)
+        {
+            BulletStatus bulletStatus = other.GetComponentInParent<BulletStatus>();
+            if (bulletStatus == null)
+            {
+                return;
+            }
+
+            CompleteBulletImpact(other.transform.position, bulletStatus);
+        }
+
+        private void CompleteBulletImpact(Vector2 impactWorldPosition, BulletStatus bulletStatus)
+        {
             HandleBulletImpact(impactWorldPosition, bulletStatus);
+            Destroy(bulletStatus.gameObject);
         }
 
         /// <summary>
