@@ -249,11 +249,27 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 101253949126976861, guid: 866fa5d2bfac9724c97bff7f235e45b6, type: 3}
       propertyPath: m_Parameters.widthCurve.m_Curve.Array.data[0].value
-      value: 0.44488144
+      value: 0.5555555
       objectReference: {fileID: 0}
     - target: {fileID: 325178544881226075, guid: 866fa5d2bfac9724c97bff7f235e45b6, type: 3}
       propertyPath: moveSpeed
       value: 4
+      objectReference: {fileID: 0}
+    - target: {fileID: 325178544881226075, guid: 866fa5d2bfac9724c97bff7f235e45b6, type: 3}
+      propertyPath: Movelimitmax.x
+      value: 8.5
+      objectReference: {fileID: 0}
+    - target: {fileID: 325178544881226075, guid: 866fa5d2bfac9724c97bff7f235e45b6, type: 3}
+      propertyPath: Movelimitmax.y
+      value: 5
+      objectReference: {fileID: 0}
+    - target: {fileID: 325178544881226075, guid: 866fa5d2bfac9724c97bff7f235e45b6, type: 3}
+      propertyPath: Movelimitmin.x
+      value: -8.5
+      objectReference: {fileID: 0}
+    - target: {fileID: 325178544881226075, guid: 866fa5d2bfac9724c97bff7f235e45b6, type: 3}
+      propertyPath: Movelimitmin.y
+      value: -5
       objectReference: {fileID: 0}
     - target: {fileID: 721545299209909890, guid: 866fa5d2bfac9724c97bff7f235e45b6, type: 3}
       propertyPath: size

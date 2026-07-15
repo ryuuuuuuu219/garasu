@@ -1,5 +1,6 @@
-using PolygonRendering.Input;
+﻿using PolygonRendering.Input;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace GlassShooter.Gameplay
 {
@@ -12,7 +13,6 @@ namespace GlassShooter.Gameplay
     {
         [Header("Movement")]
         [SerializeField, Min(0f)] private float moveSpeed = 7f;
-        [SerializeField] private float horizontalLimit = 8.2f;
 
         [Header("Shooting")]
         [SerializeField] private Projectile projectilePrefab = null;
@@ -22,14 +22,28 @@ namespace GlassShooter.Gameplay
         private KeyboardInputState inputState;
         private float nextFireTime;
 
+        private LineRenderer lr;
+
+        [SerializeField] Vector2 Movelimitmin, Movelimitmax;
+
         private void Awake()
         {
             inputState = GetComponent<KeyboardInputState>();
+
+            // LineRendererコンポーネント用の GameObjectを作成して子オブジェクトとして追加
+            GameObject child = new GameObject("LineRenderer");
+            child.transform.SetParent(transform);
+            child.transform.localPosition = Vector3.zero;
+            lr = child.AddComponent<LineRenderer>();
+            lr.material = new Material(Shader.Find("Sprites/Default"));
+            lr.startWidth = 0.05f;
+            lr.endWidth = 0.05f;
         }
 
         private void Update()
         {
             Move();
+            RenderingLimit();
 
             if ((UnityEngine.Input.GetKey(KeyCode.Space) || inputState.LeftShiftActive)
                 && Time.time >= nextFireTime)
@@ -41,9 +55,24 @@ namespace GlassShooter.Gameplay
         private void Move()
         {
             Vector3 position = transform.position;
-            position.x += inputState.ArrowDirection.x * moveSpeed * Time.deltaTime;
-            position.x = Mathf.Clamp(position.x, -horizontalLimit, horizontalLimit);
+            position += (Vector3)inputState.ArrowDirection * moveSpeed * Time.deltaTime;
+            position.x = Mathf.Clamp(position.x, Movelimitmin.x, Movelimitmax.x);
+            position.y = Mathf.Clamp(position.y, Movelimitmin.y, Movelimitmax.y);
             transform.position = position;
+        }
+
+        void RenderingLimit()
+        {
+            lr.positionCount = 4;
+            lr.SetPosition(0, new Vector3(Movelimitmin.x, Movelimitmin.y, 0f));
+            lr.SetPosition(1, new Vector3(Movelimitmax.x, Movelimitmin.y, 0f));
+            lr.SetPosition(2, new Vector3(Movelimitmax.x, Movelimitmax.y, 0f));
+            lr.SetPosition(3, new Vector3(Movelimitmin.x, Movelimitmax.y, 0f));
+            lr.loop = true;
+            lr.startColor = Color.white;
+            lr.endColor = Color.white;
+            lr.useWorldSpace = true;
+
         }
 
         private void Fire()
