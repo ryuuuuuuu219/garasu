@@ -1,4 +1,4 @@
-using GlassShooter.Gameplay;
+﻿using GlassShooter.Gameplay;
 using PolygonRendering;
 using UnityEngine;
 
@@ -103,17 +103,32 @@ namespace Gameplay
             GameObject outlineObject = new GameObject("GlassSurfaceLineRenderer");
             outlineObject.transform.SetParent(enemy.transform, false);
             GlassSurfaceLineRenderer outline = outlineObject.AddComponent<GlassSurfaceLineRenderer>();
+            var lr1 = outline.GetComponent<LineRenderer>();
+            lr1.material=new Material(Shader.Find("Sprites/Default"));
             outline.SetOutline(outlinePoints);
 
             GameObject crackObject = new GameObject("CrackLineRenderer");
             crackObject.transform.SetParent(enemy.transform, false);
             crackObject.AddComponent<CrackLineRenderer>();
+            var lr2 = crackObject.GetComponent<LineRenderer>();
+            lr2.material=new Material(Shader.Find("Sprites/Default"));
+
+            lrSetting(lr1);
+            lrSetting(lr2);
 
             // 子の描画コンポーネントを作った後に追加すると、Awakeで参照を自動取得できます。
             enemy.AddComponent<CrackProcessingComponent>();
 
             PolygonCollider2D collider = enemy.AddComponent<PolygonCollider2D>();
             collider.points = outlinePoints;
+        }
+
+        void lrSetting(LineRenderer lr)
+        {
+            lr.startWidth = 0.05f;
+            lr.endWidth = 0.05f;
+            lr.startColor = Color.gray;
+            lr.endColor = Color.gray;
         }
     }
 }
