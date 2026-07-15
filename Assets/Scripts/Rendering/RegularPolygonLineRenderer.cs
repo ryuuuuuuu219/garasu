@@ -10,6 +10,8 @@ namespace PolygonRendering
     [DisallowMultipleComponent]
     public sealed class RegularPolygonLineRenderer : MonoBehaviour
     {
+        const float lineWidth = 0.05f;
+
         [SerializeField, Min(3)]
         [Tooltip("正多角形の頂点数です。3以上を指定します。")]
         private int vertexCount = 3;
@@ -106,6 +108,8 @@ namespace PolygonRendering
             lineRenderer.positionCount = vertexCount;
             lineRenderer.startColor = color;
             lineRenderer.endColor = color;
+            lineRenderer.startWidth = lineWidth;
+            lineRenderer.endWidth = lineWidth;
 
             // 上向きは +Y、下向きは -Y。辺を向ける場合は半頂点分だけ回します。
             float verticalAngle = isPlayerSide ? 90f : -90f;
