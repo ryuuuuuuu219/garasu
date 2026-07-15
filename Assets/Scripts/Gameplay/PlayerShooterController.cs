@@ -1,4 +1,6 @@
-﻿using PolygonRendering.Input;
+﻿using PolygonRendering;
+using PolygonRendering.Input;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -22,7 +24,7 @@ namespace GlassShooter.Gameplay
         private KeyboardInputState inputState;
         private float nextFireTime;
 
-        public BulletStatus bulletStatus;
+        [SerializeField] private BulletStatus bulletStatus;
         BulletType bulletType => bulletStatus.Type;
 
         private LineRenderer lr;
@@ -53,7 +55,7 @@ namespace GlassShooter.Gameplay
             {
                 Fire();
             }
-            if (inputState.LeftShiftActive)
+            if (inputState.LeftShiftDown)
             {
                 ModeChange();
             }
@@ -99,7 +101,34 @@ namespace GlassShooter.Gameplay
             }
 
             Vector3 spawnPosition = firePoint != null ? firePoint.position : transform.position;
-            Instantiate(projectilePrefab, spawnPosition, Quaternion.identity);
+
+            var projectile = Instantiate(projectilePrefab, spawnPosition, Quaternion.identity);
+            int projectileVertex = bulletType switch
+            {
+                BulletType.CrackGenerator => 3,
+                BulletType.CrackOpener => 4,
+                _ => 3
+            };
+            bool pointVertexVertically = bulletType switch
+            {
+                BulletType.CrackGenerator => true,
+                BulletType.CrackOpener => false,
+                _ => true
+            };
+            projectile.TryGetComponent(out RegularPolygonLineRenderer polygonRenderer);
+            polygonRenderer.VertexCount = projectileVertex;
+            polygonRenderer.PointVertexVertically = pointVertexVertically;
+
+            if(bulletStatus == null)
+            {
+                return;
+            }
+
+            BulletStatus original = bulletStatus;
+            BulletStatus copy = projectile.TryGetComponent(out BulletStatus script) ? script : projectile.AddComponent<BulletStatus>();
+
+            copy.statusCopy(original);
+
             nextFireTime = Time.time + fireInterval;
         }
     }

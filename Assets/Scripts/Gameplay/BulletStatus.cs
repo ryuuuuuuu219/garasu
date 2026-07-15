@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace GlassShooter.Gameplay
 {
@@ -46,6 +46,23 @@ namespace GlassShooter.Gameplay
         public float EffectRadius => effectRadius;
         public float DistanceAttenuation => distanceAttenuation;
         public float EffectDuration => effectDuration;
+
+        public void statusCopy(BulletStatus original)
+        {
+            mass = original.Mass;
+            initialSpeed = original.InitialSpeed;
+            currentVelocity = original.CurrentVelocity;
+            fireRate = original.FireRate;
+            simultaneousShotCount = original.SimultaneousShotCount;
+            tipCrossSectionArea = original.TipCrossSectionArea;
+            stoppingDistance = original.StoppingDistance;
+            crackConversionEfficiency = original.CrackConversionEfficiency;
+            forceDirection = original.ForceDirection;
+            effectRadius = original.EffectRadius;
+            distanceAttenuation = original.DistanceAttenuation;
+            effectDuration = original.EffectDuration;
+
+        }
 
         /// <summary>着弾直前の速度を弾の移動処理から反映します。</summary>
         public void SetCurrentVelocity(Vector2 velocity)
