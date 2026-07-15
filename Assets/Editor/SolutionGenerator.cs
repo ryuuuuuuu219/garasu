@@ -1,0 +1,21 @@
+using UnityEditor;
+using UnityEngine;
+
+namespace ProjectTools.Editor
+{
+    [InitializeOnLoad]
+    public static class SolutionGenerator
+    {
+        static SolutionGenerator()
+        {
+            EditorApplication.delayCall += Generate;
+        }
+
+        [MenuItem("Tools/Generate C# Solution")]
+        public static void Generate()
+        {
+            UnityEditor.CodeEditor.CodeEditor.CurrentEditor.SyncAll();
+            Debug.Log("C# solution and project files generated.");
+        }
+    }
+}
