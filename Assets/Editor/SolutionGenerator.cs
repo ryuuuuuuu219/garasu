@@ -14,7 +14,7 @@ namespace ProjectTools.Editor
         [MenuItem("Tools/Generate C# Solution")]
         public static void Generate()
         {
-            UnityEditor.CodeEditor.CodeEditor.CurrentEditor.SyncAll();
+            Unity.CodeEditor.CodeEditor.Editor.CurrentCodeEditor.SyncAll();
             Debug.Log("C# solution and project files generated.");
         }
     }

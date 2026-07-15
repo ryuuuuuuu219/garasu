@@ -104,6 +104,8 @@ namespace PolygonRendering
             lineRenderer.useWorldSpace = false;
             lineRenderer.loop = true;
             lineRenderer.positionCount = vertexCount;
+            lineRenderer.startColor = color;
+            lineRenderer.endColor = color;
 
             // 上向きは +Y、下向きは -Y。辺を向ける場合は半頂点分だけ回します。
             float verticalAngle = isPlayerSide ? 90f : -90f;

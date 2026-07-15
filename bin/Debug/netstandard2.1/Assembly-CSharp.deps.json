@@ -7,7 +7,7 @@
   "targets": {
     ".NETStandard,Version=v2.1": {},
     ".NETStandard,Version=v2.1/": {
-      "Assembly-CSharp.Project/1.0.0": {
+      "Assembly-CSharp/1.0.0": {
         "dependencies": {
           "UnityEngine.CoreModule": "0.0.0.0",
           "UnityEngine": "0.0.0.0",
@@ -612,7 +612,7 @@
     }
   },
   "libraries": {
-    "Assembly-CSharp.Project/1.0.0": {
+    "Assembly-CSharp/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""
