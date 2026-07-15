@@ -49,6 +49,11 @@ namespace Gameplay
 
         private SpownPattern[] _spownPatterns;
         private float _timer;
+        private int _currentPatternId = -1;
+        private int _lastSpawnedEnemyId = -1;
+
+        public int CurrentPatternId => _currentPatternId;
+        public int LastSpawnedEnemyId => _lastSpawnedEnemyId;
 
         private void Awake()
         {
@@ -95,6 +100,7 @@ namespace Gameplay
 
                 for (int positionIndex = 0; positionIndex < pattern.Positions.Length; positionIndex++)
                 {
+                    _currentPatternId = patternIndex;
                     SpawnEnemy(pattern.EnemyType, pattern.Positions[positionIndex], positionIndex);
                 }
 
@@ -106,6 +112,7 @@ namespace Gameplay
 
         private void SpawnEnemy(string enemyType, Vector2 localPosition, int positionIndex)
         {
+            _lastSpawnedEnemyId++;
             Vector2[] outlinePoints = GetPositionsForPattern(enemyType);
 
             GameObject enemy = new GameObject($"{enemyType}_{positionIndex}");
@@ -145,6 +152,77 @@ namespace Gameplay
             // 子の描画とColliderを作った後に追加すると、Awakeで参照を自動取得できます。
             CrackProcessingComponent processing = obj.AddComponent<CrackProcessingComponent>();
             processing.Initialize(outlinePoints);
+        }
+
+        public string BuildPatternCompositionSummary()
+        {
+            EnsurePatternsDefined();
+            var builder = new System.Text.StringBuilder();
+            for (int i = 0; i < _spownPatterns.Length; i++)
+            {
+                SpownPattern pattern = _spownPatterns[i];
+                if (i > 0)
+                {
+                    builder.AppendLine();
+                }
+                builder.Append('[').Append(i).Append("] t=")
+                    .Append(pattern.Time.ToString("0.###"))
+                    .Append(" type=").Append(pattern.EnemyType)
+                    .Append(" count=").Append(pattern.Positions?.Length ?? 0)
+                    .Append(" active=").Append(pattern.IsActive);
+            }
+            return builder.ToString();
+        }
+
+        public float CalculateMaximumPatternArea()
+        {
+            EnsurePatternsDefined();
+            float maximumArea = 0f;
+            for (int i = 0; i < _spownPatterns.Length; i++)
+            {
+                maximumArea = Mathf.Max(
+                    maximumArea,
+                    Mathf.Abs(CalculateSignedArea(GetPositionsForPattern(_spownPatterns[i].EnemyType))));
+            }
+            return maximumArea;
+        }
+
+        public int CalculateMaximumFragmentUpperBound(float minimumBreakableArea)
+        {
+            if (minimumBreakableArea <= 0f)
+            {
+                return int.MaxValue;
+            }
+
+            // 各破片は閾値より大きい必要があるため、N * 閾値 < 元面積を満たす最大N。
+            return Mathf.Max(
+                0,
+                Mathf.CeilToInt(CalculateMaximumPatternArea() / minimumBreakableArea) - 1);
+        }
+
+        private void EnsurePatternsDefined()
+        {
+            if (_spownPatterns == null)
+            {
+                PatternDefine();
+            }
+        }
+
+        private static float CalculateSignedArea(Vector2[] points)
+        {
+            if (points == null || points.Length < 3)
+            {
+                return 0f;
+            }
+
+            float twiceArea = 0f;
+            for (int i = 0; i < points.Length; i++)
+            {
+                Vector2 current = points[i];
+                Vector2 next = points[(i + 1) % points.Length];
+                twiceArea += current.x * next.y - next.x * current.y;
+            }
+            return twiceArea * 0.5f;
         }
 
         void lrSetting(LineRenderer lr)

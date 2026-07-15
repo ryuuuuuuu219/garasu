@@ -11,6 +11,9 @@ namespace GlassShooter.Gameplay
         [SerializeField, Min(0f)] private float speed = 12f;
         [SerializeField] private float destroyY = 6.5f;
 
+        public float Speed => speed;
+        public float DestroyY => destroyY;
+
         private Rigidbody2D projectileRigidbody;
 
         private void Awake()

@@ -60,6 +60,9 @@ namespace GlassShooter.Gameplay
         public Vector2[] Outline => (Vector2[])outline.Clone();
         public Vector2[] InitialCrackPoints => (Vector2[])initCrackPoint.Clone();
         public IReadOnlyList<Vector2[]> Cracks => cracks;
+        public float BaseFractureResistance => baseFractureResistance;
+        public float MinimumScanRadius => minimumScanRadius;
+        public float MaximumScanRadius => maximumScanRadius;
 
         private readonly struct BoundaryLocation
         {

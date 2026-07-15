@@ -16,6 +16,7 @@
 ・ガラス外周とPolygonCollider2D
 ・GlassStatusの物性、クラック、構造パラメータ
 ・Projectile実速度のBulletStatus.CurrentVelocity反映
+・GlassCalculationVerifierによる弾エネルギー、走査半径、敵構成、最大面積、理論最大破片数、成長予定値のInspector検算
 ・シード付き仮想内部亀裂点
 ・仮想点の脆弱性
 ・△弾着弾点の外周投影

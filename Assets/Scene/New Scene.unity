@@ -149,6 +149,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Gameplay.enemyspowner
   glassStatus: {fileID: 848862846}
+  manualTrigger: 0
 --- !u!4 &115280593
 Transform:
   m_ObjectHideFlags: 0
@@ -180,8 +181,9 @@ GameObject:
   - component: {fileID: 848862845}
   - component: {fileID: 848862844}
   - component: {fileID: 848862846}
+  - component: {fileID: 848862847}
   m_Layer: 0
-  m_Name: BulletStatus
+  m_Name: generalmaneger
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -265,7 +267,24 @@ MonoBehaviour:
   fixedPositionStrength: 1
   fragmentAttackMultiplier: 1
   fragmentFallSpeedMultiplier: 1
+  minimumBreakableArea: 0.04
   repairSpeed: 0
+--- !u!114 &848862847
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 848862843}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5d4ce14c6309436495d802df8514eb9c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GlassShooter.Gameplay.EnvironmentManager
+  globalScaleMultiplier: 1
+  scaleRoot: {fileID: 0}
+  baseGravity: {x: 0, y: -9.81}
+  gravityMultiplier: 0.06
 --- !u!1 &1586437419
 GameObject:
   m_ObjectHideFlags: 0

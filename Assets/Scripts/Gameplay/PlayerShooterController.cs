@@ -31,6 +31,13 @@ namespace GlassShooter.Gameplay
 
         [SerializeField] Vector2 Movelimitmin, Movelimitmax;
 
+        public Vector2 MoveLimitMin => Movelimitmin;
+        public Vector2 MoveLimitMax => Movelimitmax;
+        public BulletStatus BulletStatus => bulletStatus;
+        public Projectile ProjectilePrefab => projectilePrefab;
+        public float MoveSpeed => moveSpeed;
+        public float FireInterval => fireInterval;
+
         private void Awake()
         {
             inputState = GetComponent<KeyboardInputState>();
