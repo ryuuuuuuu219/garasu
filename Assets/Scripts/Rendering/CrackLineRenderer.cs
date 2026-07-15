@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace PolygonRendering
@@ -21,7 +22,9 @@ namespace PolygonRendering
         [SerializeField, Min(0f)] private float endWidth = 0.012f;
         [SerializeField] private int sortingOrder = 1;
 
-        private LineRenderer lineRenderer;
+        private readonly List<LineRenderer> lineRenderers = new List<LineRenderer>();
+
+        public IReadOnlyList<LineRenderer> LineRenderers => lineRenderers;
 
         public int PointCount => crackPoints?.Length ?? 0;
 
@@ -51,7 +54,7 @@ namespace PolygonRendering
             }
 
             crackPoints = (Vector2[])points.Clone();
-            Rebuild();
+            SetCracks(new[] { crackPoints });
         }
 
         /// <summary>クラック先端へ新しい点を追加します。</summary>
@@ -60,41 +63,84 @@ namespace PolygonRendering
             int oldCount = crackPoints?.Length ?? 0;
             Array.Resize(ref crackPoints, oldCount + 1);
             crackPoints[oldCount] = point;
-            Rebuild();
+            SetCracks(new[] { crackPoints });
         }
 
         /// <summary>描画中のクラックを消去します。</summary>
         public void Clear()
         {
             crackPoints = Array.Empty<Vector2>();
-            Rebuild();
+            SetCracks(Array.Empty<Vector2[]>());
+        }
+
+        /// <summary>複数の独立したクラックを、それぞれ別の LineRenderer で描画します。</summary>
+        public void SetCracks(IReadOnlyList<Vector2[]> cracks)
+        {
+            int requiredCount = cracks?.Count ?? 0;
+            EnsureRendererCount(requiredCount);
+
+            for (int i = 0; i < lineRenderers.Count; i++)
+            {
+                LineRenderer renderer = lineRenderers[i];
+                bool active = i < requiredCount && cracks[i] != null && cracks[i].Length > 0;
+                renderer.enabled = active;
+                if (!active)
+                {
+                    renderer.positionCount = 0;
+                    continue;
+                }
+
+                Vector2[] points = cracks[i];
+                ConfigureRenderer(renderer);
+                renderer.positionCount = points.Length;
+                for (int pointIndex = 0; pointIndex < points.Length; pointIndex++)
+                {
+                    renderer.SetPosition(pointIndex, points[pointIndex]);
+                }
+            }
         }
 
         [ContextMenu("Rebuild Crack")]
         public void Rebuild()
         {
-            if (!TryGetComponent(out lineRenderer))
+            if (crackPoints == null || crackPoints.Length == 0)
             {
+                SetCracks(Array.Empty<Vector2[]>());
                 return;
             }
 
-            int count = crackPoints?.Length ?? 0;
-            lineRenderer.useWorldSpace = false;
-            lineRenderer.loop = false;
-            lineRenderer.positionCount = count;
-            lineRenderer.startColor = startColor;
-            lineRenderer.endColor = endColor;
-            lineRenderer.startWidth = startWidth;
-            lineRenderer.endWidth = endWidth;
-            lineRenderer.numCornerVertices = 2;
-            lineRenderer.numCapVertices = 2;
-            lineRenderer.sortingOrder = sortingOrder;
+            SetCracks(new[] { crackPoints });
+        }
 
-            for (int i = 0; i < count; i++)
+        private void EnsureRendererCount(int requiredCount)
+        {
+            if (lineRenderers.Count == 0 && TryGetComponent(out LineRenderer existing))
             {
-                Vector2 point = crackPoints[i];
-                lineRenderer.SetPosition(i, new Vector3(point.x, point.y, 0f));
+                lineRenderers.Add(existing);
             }
+
+            while (lineRenderers.Count < requiredCount)
+            {
+                lineRenderers.Add(gameObject.AddComponent<LineRenderer>());
+            }
+
+            for (int i = 0; i < lineRenderers.Count; i++)
+            {
+                ConfigureRenderer(lineRenderers[i]);
+            }
+        }
+
+        private void ConfigureRenderer(LineRenderer renderer)
+        {
+            renderer.useWorldSpace = false;
+            renderer.loop = false;
+            renderer.startColor = startColor;
+            renderer.endColor = endColor;
+            renderer.startWidth = startWidth;
+            renderer.endWidth = endWidth;
+            renderer.numCornerVertices = 2;
+            renderer.numCapVertices = 2;
+            renderer.sortingOrder = sortingOrder;
         }
     }
 }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using UnityEngine;
 
 namespace PolygonRendering
@@ -28,6 +28,9 @@ namespace PolygonRendering
         private LineRenderer lineRenderer;
 
         public int PointCount => outlinePoints?.Length ?? 0;
+        public Vector2[] OutlinePoints => outlinePoints == null
+            ? Array.Empty<Vector2>()
+            : (Vector2[])outlinePoints.Clone();
 
         private void Awake()
         {

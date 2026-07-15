@@ -7,6 +7,8 @@ namespace Gameplay
     [AddComponentMenu("Scripts/Gameplay/Enemy Spawner")]
     internal class enemyspowner : MonoBehaviour
     {
+        public GlassStatus glassStatus;
+
         private struct SpownPattern
         {
             public float Time;
@@ -97,30 +99,37 @@ namespace Gameplay
             Vector2[] outlinePoints = GetPositionsForPattern(enemyType);
 
             GameObject enemy = new GameObject($"{enemyType}_{positionIndex}");
-            enemy.transform.SetParent(transform, false);
+            Init(enemy, outlinePoints);
             enemy.transform.localPosition = new Vector3(localPosition.x, localPosition.y, 0f);
+        }
+
+        public void Init(GameObject obj, Vector2[] outlinePoints)
+        {
+
+            obj.transform.SetParent(transform, false);
 
             GameObject outlineObject = new GameObject("GlassSurfaceLineRenderer");
-            outlineObject.transform.SetParent(enemy.transform, false);
+            outlineObject.transform.SetParent(obj.transform, false);
             GlassSurfaceLineRenderer outline = outlineObject.AddComponent<GlassSurfaceLineRenderer>();
             var lr1 = outline.GetComponent<LineRenderer>();
-            lr1.material=new Material(Shader.Find("Sprites/Default"));
+            lr1.material = new Material(Shader.Find("Sprites/Default"));
             outline.SetOutline(outlinePoints);
 
             GameObject crackObject = new GameObject("CrackLineRenderer");
-            crackObject.transform.SetParent(enemy.transform, false);
+            crackObject.transform.SetParent(obj.transform, false);
             crackObject.AddComponent<CrackLineRenderer>();
             var lr2 = crackObject.GetComponent<LineRenderer>();
-            lr2.material=new Material(Shader.Find("Sprites/Default"));
+            lr2.material = new Material(Shader.Find("Sprites/Default"));
 
             lrSetting(lr1);
             lrSetting(lr2);
 
-            // 子の描画コンポーネントを作った後に追加すると、Awakeで参照を自動取得できます。
-            enemy.AddComponent<CrackProcessingComponent>();
-
-            PolygonCollider2D collider = enemy.AddComponent<PolygonCollider2D>();
+            PolygonCollider2D collider = obj.AddComponent<PolygonCollider2D>();
             collider.points = outlinePoints;
+
+            // 子の描画とColliderを作った後に追加すると、Awakeで参照を自動取得できます。
+            CrackProcessingComponent processing = obj.AddComponent<CrackProcessingComponent>();
+            processing.Initialize(outlinePoints);
         }
 
         void lrSetting(LineRenderer lr)
