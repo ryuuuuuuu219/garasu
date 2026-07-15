@@ -268,12 +268,20 @@ namespace GlassShooter.Gameplay
             // 今回は△弾だけを対象とし、□弾用の状態と処理入口はそのまま残す。
             if (bulletStatus.Type != BulletType.CrackGenerator)
             {
+                ApplySizeMultiplier(bulletStatus.ContactSizeMultiplier);
+                return;
+            }
+
+            if (TryGetComponent(out GlassFragment _) &&
+                glassStatus != null &&
+                Mathf.Abs(SignedArea(outline)) + GeometryEpsilon < glassStatus.MinimumBreakableArea)
+            {
                 return;
             }
 
             EnsureCrackGraphInitialized();
             CrackNode surfaceFlaw = FindOrCreateSurfaceFlaw(impactLocalPosition);
-            CrackNode startNode = FindNearestCrackTipOrFallback(surfaceFlaw);
+            CrackNode startNode = FindNearestCrackNodeOrFallback(surfaceFlaw);
             Vector2 referenceDirection = ResolveReferenceDirection(startNode, bulletStatus.CurrentVelocity);
 
             float impactEnergy = bulletStatus.CalculateKineticEnergy()
@@ -293,6 +301,66 @@ namespace GlassShooter.Gameplay
 
             // 外周同士を結ぶ連続クラックが完成した場合だけ既存の破片分離へ渡す。
             TrySeparateCompletedPath();
+        }
+
+        private void ApplySizeMultiplier(float multiplier)
+        {
+            multiplier = Mathf.Max(0f, multiplier);
+            if (Mathf.Approximately(multiplier, 1f) || outline == null || outline.Length < 3)
+            {
+                return;
+            }
+
+            Vector2 center = CalculateCentroid(outline);
+            ScalePoints(outline, center, multiplier);
+            ScalePoints(initCrackPoint, center, multiplier);
+            for (int crackIndex = 0; crackIndex < cracks.Length; crackIndex++)
+            {
+                ScalePoints(cracks[crackIndex], center, multiplier);
+            }
+            for (int nodeIndex = 0; nodeIndex < crackNodes.Count; nodeIndex++)
+            {
+                CrackNode node = crackNodes[nodeIndex];
+                node.localPosition = center + (node.localPosition - center) * multiplier;
+            }
+
+            float scaledArea = Mathf.Abs(SignedArea(outline));
+            float minimumArea = glassStatus != null
+                ? glassStatus.MinimumBreakableArea
+                : 0.04f;
+            if (scaledArea <= minimumArea + GeometryEpsilon)
+            {
+                Destroy(gameObject);
+                return;
+            }
+
+            if (outlineLineRenderer != null)
+            {
+                outlineLineRenderer.SetOutline(outline);
+            }
+            if (TryGetComponent(out PolygonCollider2D collider))
+            {
+                collider.points = outline;
+            }
+            if (TryGetComponent(out Rigidbody2D body))
+            {
+                body.mass = glassStatus != null
+                    ? glassStatus.CalculateMass(scaledArea)
+                    : Mathf.Max(0.05f, scaledArea);
+            }
+            RenderCracks();
+        }
+
+        private static void ScalePoints(Vector2[] points, Vector2 center, float multiplier)
+        {
+            if (points == null)
+            {
+                return;
+            }
+            for (int i = 0; i < points.Length; i++)
+            {
+                points[i] = center + (points[i] - center) * multiplier;
+            }
         }
 
         private void EnsureCrackGraphInitialized()
@@ -482,39 +550,37 @@ namespace GlassShooter.Gameplay
             return GetOrCreateNode(impactLocalPosition, 1f, true);
         }
 
-        private CrackNode FindNearestCrackTipOrFallback(CrackNode fallback)
+        private CrackNode FindNearestCrackNodeOrFallback(CrackNode fallback)
         {
-            CrackNode nearestTip = null;
+            CrackNode nearestNode = null;
             float nearestDistance = crackTipDetectionRadius;
-            for (int i = 0; i < crackNodes.Count; i++)
+            var visitedNodeIds = new HashSet<int>();
+            for (int i = 0; i < crackConnections.Count; i++)
             {
-                CrackNode node = crackNodes[i];
-                if (GetNodeDegree(node.id) != 1)
+                ConsiderNode(crackConnections[i].nodeAId);
+                ConsiderNode(crackConnections[i].nodeBId);
+            }
+            return nearestNode ?? fallback;
+
+            void ConsiderNode(int nodeId)
+            {
+                if (!visitedNodeIds.Add(nodeId))
                 {
-                    continue;
+                    return;
                 }
 
+                CrackNode node = GetNode(nodeId);
+                if (node == null)
+                {
+                    return;
+                }
                 float distance = Vector2.Distance(node.localPosition, fallback.localPosition);
                 if (distance <= nearestDistance)
                 {
                     nearestDistance = distance;
-                    nearestTip = node;
+                    nearestNode = node;
                 }
             }
-            return nearestTip ?? fallback;
-        }
-
-        private int GetNodeDegree(int nodeId)
-        {
-            int degree = 0;
-            for (int i = 0; i < crackConnections.Count; i++)
-            {
-                if (crackConnections[i].nodeAId == nodeId || crackConnections[i].nodeBId == nodeId)
-                {
-                    degree++;
-                }
-            }
-            return degree;
         }
 
         private Vector2 ResolveReferenceDirection(CrackNode startNode, Vector2 bulletVelocity)
@@ -522,11 +588,6 @@ namespace GlassShooter.Gameplay
             Vector2 fallbackDirection = bulletVelocity.sqrMagnitude > GeometryEpsilon * GeometryEpsilon
                 ? bulletVelocity.normalized
                 : Vector2.up;
-
-            if (GetNodeDegree(startNode.id) != 1)
-            {
-                return fallbackDirection;
-            }
 
             for (int i = 0; i < crackConnections.Count; i++)
             {
@@ -598,9 +659,11 @@ namespace GlassShooter.Gameplay
             angleMarkers.Sort((a, b) => a.Angle.CompareTo(b.Angle));
 
             var paths = new List<CrackPathCandidate>();
+            bool hasAffordablePrimary = false;
             for (int i = 0; i < primaryCandidates.Count; i++)
             {
                 CrackCandidate primary = primaryCandidates[i];
+                hasAffordablePrimary |= primary.fractureCost <= impactEnergy + GeometryEpsilon;
                 paths.Add(new CrackPathCandidate
                 {
                     primary = primary,
@@ -624,6 +687,10 @@ namespace GlassShooter.Gameplay
                 AddSectorDebugLines(startNode.localPosition, referenceDirection, sectorStart, sectorEnd, scanRadius);
 
                 Vector2 primaryDirection = (primary.to.localPosition - primary.from.localPosition).normalized;
+                float remainingEnergyForSecondary = Mathf.Max(
+                    0f,
+                    impactEnergy - primary.fractureCost);
+                bool hasAffordableSecondary = false;
                 for (int nodeIndex = 0; nodeIndex < crackNodes.Count; nodeIndex++)
                 {
                     CrackNode secondaryNode = crackNodes[nodeIndex];
@@ -660,9 +727,6 @@ namespace GlassShooter.Gameplay
                     float directionAlignment = Mathf.Clamp01(
                         (Vector2.Dot(primaryDirection, fromPrimary.normalized) + 1f) * 0.5f);
                     float distanceFactor = Mathf.Clamp01(1f - secondaryDistance / secondaryRadius);
-                    float remainingEnergyForSecondary = Mathf.Max(
-                        0f,
-                        impactEnergy - primary.fractureCost);
                     float energyFactor = Mathf.Clamp01(
                         remainingEnergyForSecondary / Mathf.Max(impactEnergy, GeometryEpsilon));
                     float probability = Mathf.Clamp01(
@@ -683,9 +747,132 @@ namespace GlassShooter.Gameplay
                         hasSecondary = true,
                         totalFractureCost = primary.fractureCost + secondary.fractureCost
                     });
+                    hasAffordableSecondary |= secondary.fractureCost
+                        <= remainingEnergyForSecondary + GeometryEpsilon;
+                }
+
+                // 通常の二次候補に予算内の接続先がない場合だけ、進行方向の外周を候補にする。
+                if (!hasAffordableSecondary &&
+                    TryBuildBoundaryFallbackCandidate(
+                        primary.to,
+                        primaryDirection,
+                        secondaryRadius,
+                        remainingEnergyForSecondary,
+                        out CrackCandidate boundarySecondary))
+                {
+                    paths.Add(new CrackPathCandidate
+                    {
+                        primary = primary,
+                        secondary = boundarySecondary,
+                        hasSecondary = true,
+                        totalFractureCost = primary.fractureCost + boundarySecondary.fractureCost
+                    });
                 }
             }
+
+            // 通常の一次候補に予算内の接続先がない場合だけ、基準方向の外周を候補にする。
+            if (!hasAffordablePrimary &&
+                TryBuildBoundaryFallbackCandidate(
+                    startNode,
+                    referenceDirection,
+                    scanRadius,
+                    impactEnergy,
+                    out CrackCandidate boundaryPrimary))
+            {
+                paths.Add(new CrackPathCandidate
+                {
+                    primary = boundaryPrimary,
+                    hasSecondary = false,
+                    totalFractureCost = boundaryPrimary.fractureCost
+                });
+            }
             return paths;
+        }
+
+        private bool TryBuildBoundaryFallbackCandidate(
+            CrackNode origin,
+            Vector2 direction,
+            float maximumDistance,
+            float availableEnergy,
+            out CrackCandidate candidate)
+        {
+            candidate = null;
+            if (origin == null ||
+                maximumDistance <= GeometryEpsilon ||
+                availableEnergy <= GeometryEpsilon ||
+                direction.sqrMagnitude <= GeometryEpsilon * GeometryEpsilon ||
+                outline == null ||
+                outline.Length < 3 ||
+                !TryGetFirstBoundaryIntersection(
+                    origin.localPosition,
+                    direction.normalized,
+                    maximumDistance,
+                    out Vector2 boundaryPoint))
+            {
+                return false;
+            }
+
+            // 既存ノードなら再利用する。新規交点は候補中だけ負IDで保持し、採用時に永続化する。
+            CrackNode boundaryNode = FindNodeAt(boundaryPoint) ?? new CrackNode
+            {
+                id = -1,
+                localPosition = boundaryPoint,
+                vulnerability = 1f,
+                isSurfaceFlaw = false
+            };
+
+            if (!TryBuildCandidate(
+                origin,
+                boundaryNode,
+                direction,
+                maximumDistance,
+                false,
+                out candidate) ||
+                candidate.fractureCost > availableEnergy + GeometryEpsilon)
+            {
+                candidate = null;
+                return false;
+            }
+
+            debugPrimaryCandidates.Add(new DebugLine(origin.localPosition, boundaryPoint));
+            return true;
+        }
+
+        private bool TryGetFirstBoundaryIntersection(
+            Vector2 origin,
+            Vector2 direction,
+            float maximumDistance,
+            out Vector2 boundaryPoint)
+        {
+            boundaryPoint = default;
+            Vector2 rayEnd = origin + direction * maximumDistance;
+            float closestDistanceSquared = float.PositiveInfinity;
+            bool found = false;
+
+            for (int i = 0; i < outline.Length; i++)
+            {
+                if (!TryGetSegmentIntersection(
+                    origin,
+                    rayEnd,
+                    outline[i],
+                    outline[(i + 1) % outline.Length],
+                    out Vector2 hit))
+                {
+                    continue;
+                }
+
+                float distanceSquared = (hit - origin).sqrMagnitude;
+                if (distanceSquared <= GeometryEpsilon * GeometryEpsilon ||
+                    distanceSquared >= closestDistanceSquared)
+                {
+                    continue;
+                }
+
+                closestDistanceSquared = distanceSquared;
+                boundaryPoint = hit;
+                found = true;
+            }
+            return found;
         }
 
         private bool TryBuildCandidate(
@@ -1149,6 +1336,20 @@ namespace GlassShooter.Gameplay
 
             void CreateIfMissing(CrackCandidate candidate)
             {
+                if (candidate.from.id < 0)
+                {
+                    candidate.from = GetOrCreateNode(
+                        candidate.from.localPosition,
+                        candidate.from.vulnerability,
+                        false);
+                }
+                if (candidate.to.id < 0)
+                {
+                    candidate.to = GetOrCreateNode(
+                        candidate.to.localPosition,
+                        candidate.to.vulnerability,
+                        false);
+                }
                 if (AreDirectlyConnected(candidate.from.id, candidate.to.id))
                 {
                     return;
@@ -1336,23 +1537,21 @@ namespace GlassShooter.Gameplay
             }
 
             // 分岐点で描画用折れ線が分かれていても、グラフ上で外周同士がつながれば分離へ渡す。
-            var boundaryTips = new List<int>();
-            for (int i = 0; i < crackNodes.Count; i++)
+            var boundaryNodeIds = new HashSet<int>();
+            for (int i = 0; i < crackConnections.Count; i++)
             {
-                if (GetNodeDegree(crackNodes[i].id) == 1 &&
-                    IsPointOnOutline(crackNodes[i].localPosition))
-                {
-                    boundaryTips.Add(crackNodes[i].id);
-                }
+                AddIfOnBoundary(crackConnections[i].nodeAId);
+                AddIfOnBoundary(crackConnections[i].nodeBId);
             }
+            var boundaryNodes = new List<int>(boundaryNodeIds);
 
-            for (int startIndex = 0; startIndex < boundaryTips.Count; startIndex++)
+            for (int startIndex = 0; startIndex < boundaryNodes.Count; startIndex++)
             {
-                for (int endIndex = startIndex + 1; endIndex < boundaryTips.Count; endIndex++)
+                for (int endIndex = startIndex + 1; endIndex < boundaryNodes.Count; endIndex++)
                 {
                     if (TryFindNodePath(
-                        boundaryTips[startIndex],
-                        boundaryTips[endIndex],
+                        boundaryNodes[startIndex],
+                        boundaryNodes[endIndex],
                         out Vector2[] continuousPath) &&
                         TrySeparateAlongCrack(continuousPath))
                     {
@@ -1361,6 +1560,15 @@ namespace GlassShooter.Gameplay
                 }
             }
             return false;
+
+            void AddIfOnBoundary(int nodeId)
+            {
+                CrackNode node = GetNode(nodeId);
+                if (node != null && IsPointOnOutline(node.localPosition))
+                {
+                    boundaryNodeIds.Add(nodeId);
+                }
+            }
         }
 
         private bool TryFindNodePath(int startNodeId, int targetNodeId, out Vector2[] path)
@@ -1449,11 +1657,6 @@ namespace GlassShooter.Gameplay
                     Gizmos.color = Color.magenta;
                     Gizmos.DrawSphere(transform.TransformPoint(node.localPosition), 0.075f);
                 }
-                if (GetNodeDegree(node.id) == 1)
-                {
-                    Gizmos.color = new Color(1f, 0.5f, 0f);
-                    Gizmos.DrawWireSphere(transform.TransformPoint(node.localPosition), 0.11f);
-                }
             }
 
             if (hasDebugImpact)
@@ -1511,7 +1714,8 @@ namespace GlassShooter.Gameplay
         public bool TrySeparateAlongCrack(Vector2[] crack)
         {
             EnsureGeometryInitialized();
-            if (!TrySplitPolygon(outline, crack, out Vector2[] firstRegion, out Vector2[] secondRegion))
+            if (!TrySplitPolygon(outline, crack, out Vector2[] firstRegion, out Vector2[] secondRegion) ||
+                !IsSafeSplitByArea(firstRegion, secondRegion))
             {
                 return false;
             }
@@ -1520,6 +1724,29 @@ namespace GlassShooter.Gameplay
             CreateFragment(secondRegion, 1);
             Destroy(gameObject);
             return true;
+        }
+
+        private bool IsSafeSplitByArea(
+            IReadOnlyList<Vector2> firstRegion,
+            IReadOnlyList<Vector2> secondRegion)
+        {
+            float sourceArea = Mathf.Abs(SignedArea(outline));
+            float firstArea = Mathf.Abs(SignedArea(firstRegion));
+            float secondArea = Mathf.Abs(SignedArea(secondRegion));
+            float minimumArea = glassStatus != null
+                ? glassStatus.MinimumBreakableArea
+                : 0.04f;
+
+            // どちらかが細片になる分割は成立させず、元破片を残す。
+            if (firstArea <= minimumArea + GeometryEpsilon ||
+                secondArea <= minimumArea + GeometryEpsilon)
+            {
+                return false;
+            }
+
+            // 自己交差や外周上の重複で面積が増減する異常分割も拒否する。
+            float areaTolerance = Mathf.Max(GeometryEpsilon * 10f, sourceArea * 0.001f);
+            return Mathf.Abs(firstArea + secondArea - sourceArea) <= areaTolerance;
         }
 
         /// <summary>クラック先端を指定位置まで延ばし、外周に当たれば分離を試みます。</summary>
@@ -1795,7 +2022,9 @@ namespace GlassShooter.Gameplay
                     }
                     parameters.Sort();
 
-                    // 外周交点で線分を分割し、中点が破片内または外周上の区間だけを残す。
+                    // 外周交点で線分を分割し、破片内部の区間だけを残す。
+                    // 新しい外周と重なる分離済みのクラックを継承すると、
+                    // 次回着弾時に細片の再分離を繰り返せてしまう。
                     for (int parameterIndex = 0; parameterIndex + 1 < parameters.Count; parameterIndex++)
                     {
                         float fromT = parameters[parameterIndex];
@@ -1806,7 +2035,7 @@ namespace GlassShooter.Gameplay
                         }
 
                         Vector2 middle = Vector2.Lerp(start, end, (fromT + toT) * 0.5f);
-                        if (!IsPointInsideOrOnPolygon(middle, polygon))
+                        if (!IsPointStrictlyInsidePolygon(middle, polygon))
                         {
                             continue;
                         }
@@ -1834,7 +2063,7 @@ namespace GlassShooter.Gameplay
             parameters.Add(value);
         }
 
-        private static bool IsPointInsideOrOnPolygon(
+        private static bool IsPointStrictlyInsidePolygon(
             Vector2 point,
             IReadOnlyList<Vector2> polygon)
         {
@@ -1842,7 +2071,7 @@ namespace GlassShooter.Gameplay
             {
                 if (IsPointOnSegment(point, polygon[i], polygon[(i + 1) % polygon.Count]))
                 {
-                    return true;
+                    return false;
                 }
             }
 
@@ -1881,7 +2110,12 @@ namespace GlassShooter.Gameplay
             float minimumBreakableArea = glassStatus != null
                 ? glassStatus.MinimumBreakableArea
                 : 0.04f;
-            bool canBreakAgain = fragmentArea + GeometryEpsilon >= minimumBreakableArea;
+            // 最小閾値以下の領域は破片Objectを作らず、その場で消滅扱いにする。
+            if (fragmentArea <= minimumBreakableArea + GeometryEpsilon)
+            {
+                return;
+            }
+            const bool canBreakAgain = true;
 
             GameObject fragment = new GameObject($"{name}_Fragment_{pieceIndex}");
             fragment.transform.SetParent(transform.parent, false);
@@ -2053,10 +2287,17 @@ namespace GlassShooter.Gameplay
 
         private void ConsumeBullet(BulletStatus bulletStatus)
         {
-            if (bulletStatus != null && !TryGetComponent(out CrackProcessingComponent _))
+            if (bulletStatus == null || TryGetComponent(out CrackProcessingComponent _))
             {
-                Destroy(bulletStatus.gameObject);
+                return;
             }
+
+            float multiplier = bulletStatus.ContactSizeMultiplier;
+            if (bulletStatus.Type == BulletType.CrackOpener && !Mathf.Approximately(multiplier, 1f))
+            {
+                Destroy(gameObject);
+            }
+            Destroy(bulletStatus.gameObject);
         }
 
         private void FixedUpdate()

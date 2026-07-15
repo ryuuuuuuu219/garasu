@@ -47,6 +47,14 @@ namespace GlassShooter.Gameplay
         public float DistanceAttenuation => distanceAttenuation;
         public float EffectDuration => effectDuration;
 
+        /// <summary>
+        /// 接触対象へ適用する線形サイズ倍率です。
+        /// △弾は等倍、□弾は (1 - 10^-2)^10、約0.9044倍にします。
+        /// </summary>
+        public float ContactSizeMultiplier => bulletType == BulletType.CrackGenerator
+            ? 1f
+            : Mathf.Pow(1f - Mathf.Pow(10f, -2f), 10f);
+
         public void statusCopy(BulletStatus original)
         {
             bulletType = original.Type;
