@@ -22,6 +22,9 @@ namespace GlassShooter.Gameplay
         private KeyboardInputState inputState;
         private float nextFireTime;
 
+        public BulletStatus bulletStatus;
+        BulletType bulletType => bulletStatus.Type;
+
         private LineRenderer lr;
 
         [SerializeField] Vector2 Movelimitmin, Movelimitmax;
@@ -45,11 +48,16 @@ namespace GlassShooter.Gameplay
             Move();
             RenderingLimit();
 
-            if ((UnityEngine.Input.GetKey(KeyCode.Space) || inputState.LeftShiftActive)
+            if (inputState.SpaceDown
                 && Time.time >= nextFireTime)
             {
                 Fire();
             }
+            if (inputState.LeftShiftActive)
+            {
+                ModeChange();
+            }
+
         }
 
         private void Move()
@@ -59,6 +67,14 @@ namespace GlassShooter.Gameplay
             position.x = Mathf.Clamp(position.x, Movelimitmin.x, Movelimitmax.x);
             position.y = Mathf.Clamp(position.y, Movelimitmin.y, Movelimitmax.y);
             transform.position = position;
+        }
+
+        private void ModeChange()
+        {
+            if (bulletStatus != null)
+            {
+                bulletStatus.ModeChange();
+            }
         }
 
         void RenderingLimit()

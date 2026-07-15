@@ -31,6 +31,8 @@ namespace PolygonRendering.Input
         /// <summary>左 Shift を押している間 true。ほかのコンポーネント反映用のフラグです。</summary>
         public bool LeftShiftActive => leftShiftActive;
 
+        public bool SpaceDown => UnityEngine.Input.GetKeyDown(KeyCode.Space);
+
         private void Update()
         {
             upArrowHeld = UnityEngine.Input.GetKey(KeyCode.UpArrow);

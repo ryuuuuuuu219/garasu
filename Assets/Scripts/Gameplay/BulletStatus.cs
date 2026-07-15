@@ -76,5 +76,13 @@ namespace GlassShooter.Gameplay
                 forceDirection.Normalize();
             }
         }
+
+        public void ModeChange()
+        {
+            bulletType = 
+            bulletType == BulletType.CrackGenerator ? 
+            BulletType.CrackOpener : BulletType.CrackGenerator;
+        }
+
     }
 }
