@@ -28,7 +28,13 @@ namespace GlassShooter.Gameplay
 
         private void FixedUpdate()
         {
-            Vector2 nextPosition = projectileRigidbody.position + Vector2.up * (speed * Time.fixedDeltaTime);
+            Vector2 velocity = Vector2.up * speed;
+            if (TryGetComponent(out BulletStatus bulletStatus))
+            {
+                bulletStatus.SetCurrentVelocity(velocity);
+            }
+
+            Vector2 nextPosition = projectileRigidbody.position + velocity * Time.fixedDeltaTime;
             projectileRigidbody.MovePosition(nextPosition);
 
             if (nextPosition.y >= destroyY)

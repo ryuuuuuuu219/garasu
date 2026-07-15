@@ -127,6 +127,11 @@ namespace Gameplay
             PolygonCollider2D collider = obj.AddComponent<PolygonCollider2D>();
             collider.points = outlinePoints;
 
+            GlassStatus spawnedStatus = obj.TryGetComponent(out GlassStatus existingStatus)
+                ? existingStatus
+                : obj.AddComponent<GlassStatus>();
+            spawnedStatus.CopyFrom(glassStatus);
+
             // 子の描画とColliderを作った後に追加すると、Awakeで参照を自動取得できます。
             CrackProcessingComponent processing = obj.AddComponent<CrackProcessingComponent>();
             processing.Initialize(outlinePoints);

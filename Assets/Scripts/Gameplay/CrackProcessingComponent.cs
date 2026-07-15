@@ -10,12 +10,14 @@ namespace GlassShooter.Gameplay
     /// すべての形状データはガラスのローカル座標で扱います。
     /// </summary>
     [DisallowMultipleComponent]
+    [RequireComponent(typeof(GlassStatus))]
     public sealed class CrackProcessingComponent : MonoBehaviour
     {
         [Header("Glass References")]
         [SerializeField] private GameObject glassRoot = null;
         [SerializeField] private GlassSurfaceLineRenderer outlineLineRenderer = null;
         [SerializeField] private CrackLineRenderer crackLineRenderer = null;
+        [SerializeField] private GlassStatus glassStatus = null;
 
         [Header("Geometry (Local Space)")]
         [SerializeField] private Vector2[] outline = Array.Empty<Vector2>();
@@ -24,11 +26,37 @@ namespace GlassShooter.Gameplay
         // Unityはジャグ配列をシリアライズしないため、クラックは実行時データとして保持します。
         private Vector2[][] cracks = Array.Empty<Vector2[]>();
 
+        [Header("Crack Growth")]
+        [SerializeField] private int crackRandomSeed = 12345;
+        [SerializeField, Min(0f)] private float surfaceFlawMinimumSpacing = 1.2f;
+        [SerializeField, Min(0f)] private float crackTipDetectionRadius = 1.2f;
+        [SerializeField, Min(0.0001f)] private float baseFractureResistance = 1f;
+        [SerializeField, Min(0f)] private float minimumScanRadius = 0.1f;
+        [SerializeField, Min(0f)] private float maximumScanRadius = 20f;
+        [SerializeField, Range(0.01f, 1f)] private float minimumVulnerabilityCostMultiplier = 0.1f;
+        [SerializeField, Min(0f)] private float angleCostWeight = 1f;
+
+        private readonly List<CrackNode> crackNodes = new List<CrackNode>();
+        private readonly List<CrackConnection> crackConnections = new List<CrackConnection>();
+        private System.Random crackRandom;
+        private bool crackGraphInitialized;
+
+        // 選択中オブジェクトのGizmo表示にだけ使用する直近着弾の診断情報。
+        private readonly List<DebugLine> debugPrimaryCandidates = new List<DebugLine>();
+        private readonly List<DebugLine> debugRejectedCandidates = new List<DebugLine>();
+        private readonly List<DebugLine> debugAcceptedConnections = new List<DebugLine>();
+        private readonly List<DebugCircle> debugSecondaryScans = new List<DebugCircle>();
+        private readonly List<DebugLine> debugSectorBoundaries = new List<DebugLine>();
+        private Vector2 debugLastImpact;
+        private float debugLastScanRadius;
+        private bool hasDebugImpact;
+
         private const float GeometryEpsilon = 0.0001f;
 
         public GameObject GlassRoot => glassRoot;
         public GlassSurfaceLineRenderer OutlineLineRenderer => outlineLineRenderer;
         public CrackLineRenderer CrackLineRenderer => crackLineRenderer;
+        public GlassStatus GlassStatus => glassStatus;
         public Vector2[] Outline => (Vector2[])outline.Clone();
         public Vector2[] InitialCrackPoints => (Vector2[])initCrackPoint.Clone();
         public IReadOnlyList<Vector2[]> Cracks => cracks;
@@ -45,6 +73,79 @@ namespace GlassShooter.Gameplay
             public int EdgeIndex { get; }
             public float EdgeT { get; }
             public Vector2 Point { get; }
+        }
+
+        [Serializable]
+        private sealed class CrackNode
+        {
+            public int id;
+            public Vector2 localPosition;
+
+            [Range(0f, 1f)]
+            public float vulnerability;
+
+            public bool isSurfaceFlaw;
+        }
+
+        private sealed class CrackConnection
+        {
+            public int nodeAId;
+            public int nodeBId;
+            public float fractureCost;
+        }
+
+        private sealed class CrackCandidate
+        {
+            public CrackNode from;
+            public CrackNode to;
+            public float distance;
+            public float signedAngle;
+            public float absoluteAngle;
+            public float fractureCost;
+        }
+
+        private sealed class CrackPathCandidate
+        {
+            public CrackCandidate primary;
+            public CrackCandidate secondary;
+            public bool hasSecondary;
+            public float totalFractureCost;
+        }
+
+        private readonly struct AngleMarker
+        {
+            public AngleMarker(float angle, CrackCandidate candidate)
+            {
+                Angle = angle;
+                Candidate = candidate;
+            }
+
+            public float Angle { get; }
+            public CrackCandidate Candidate { get; }
+        }
+
+        private readonly struct DebugLine
+        {
+            public DebugLine(Vector2 from, Vector2 to)
+            {
+                From = from;
+                To = to;
+            }
+
+            public Vector2 From { get; }
+            public Vector2 To { get; }
+        }
+
+        private readonly struct DebugCircle
+        {
+            public DebugCircle(Vector2 center, float radius)
+            {
+                Center = center;
+                Radius = radius;
+            }
+
+            public Vector2 Center { get; }
+            public float Radius { get; }
         }
 
         private void Awake()
@@ -72,6 +173,7 @@ namespace GlassShooter.Gameplay
             ResolveMissingReferences();
             outline = CleanPolygon(outlinePoints);
             cracks = CloneCracks(crackPaths);
+            crackGraphInitialized = false;
 
             if (outlineLineRenderer != null)
             {
@@ -89,6 +191,7 @@ namespace GlassShooter.Gameplay
         public void SetCracks(Vector2[][] crackPaths)
         {
             cracks = CloneCracks(crackPaths);
+            crackGraphInitialized = false;
             RenderCracks();
         }
 
@@ -159,8 +262,1213 @@ namespace GlassShooter.Gameplay
             // 以降のクラック計算は必ずローカル座標を使う。
             Vector2 impactLocalPosition = transform.InverseTransformPoint(impactWorldPosition);
 
-            // TODO: 局所圧力判定、クラック成長予算、□弾の開口判定へ接続する。
-            _ = impactLocalPosition;
+            // 今回は△弾だけを対象とし、□弾用の状態と処理入口はそのまま残す。
+            if (bulletStatus.Type != BulletType.CrackGenerator)
+            {
+                return;
+            }
+
+            EnsureCrackGraphInitialized();
+            CrackNode surfaceFlaw = FindOrCreateSurfaceFlaw(impactLocalPosition);
+            CrackNode startNode = FindNearestCrackTipOrFallback(surfaceFlaw);
+            Vector2 referenceDirection = ResolveReferenceDirection(startNode, bulletStatus.CurrentVelocity);
+
+            float impactEnergy = bulletStatus.CalculateKineticEnergy()
+                * bulletStatus.CrackConversionEfficiency;
+            float scanRadius = CalculateScanRadius(impactEnergy);
+
+            ResetImpactDebugData(impactLocalPosition, scanRadius);
+            List<CrackPathCandidate> paths = BuildCrackPathCandidates(
+                startNode,
+                referenceDirection,
+                scanRadius,
+                impactEnergy);
+
+            ApplyCrackPathsWithinBudget(paths, impactEnergy);
+            cracks = BuildRenderableCrackPaths();
+            RenderCracks();
+
+            // 外周同士を結ぶ連続クラックが完成した場合だけ既存の破片分離へ渡す。
+            TrySeparateCompletedPath();
+        }
+
+        private void EnsureCrackGraphInitialized()
+        {
+            if (crackGraphInitialized)
+            {
+                return;
+            }
+
+            EnsureGeometryInitialized();
+            crackNodes.Clear();
+            crackConnections.Clear();
+            crackRandom = new System.Random(crackRandomSeed);
+
+            var generatedVulnerabilities = new Dictionary<Vector2, float>();
+            if ((initCrackPoint == null || initCrackPoint.Length == 0) &&
+                glassStatus != null && outline.Length >= 3)
+            {
+                GetOutlineSize(out float width, out float height);
+                InitialCrackPointData[] generated = glassStatus.GenerateInitialCrackPointData(
+                    width,
+                    height,
+                    crackRandomSeed);
+                var validPositions = new List<Vector2>(generated.Length);
+                for (int i = 0; i < generated.Length; i++)
+                {
+                    if (!IsPointInsideOrOnOutline(generated[i].localPosition))
+                    {
+                        continue;
+                    }
+
+                    validPositions.Add(generated[i].localPosition);
+                    generatedVulnerabilities[generated[i].localPosition] = generated[i].vulnerability;
+                }
+                initCrackPoint = validPositions.ToArray();
+            }
+
+            float minimumVulnerability = glassStatus != null
+                ? glassStatus.MinimumInitialVulnerability
+                : 0f;
+            float maximumVulnerability = glassStatus != null
+                ? glassStatus.MaximumInitialVulnerability
+                : 1f;
+
+            for (int i = 0; i < initCrackPoint.Length; i++)
+            {
+                Vector2 position = initCrackPoint[i];
+                if (!IsPointInsideOrOnOutline(position))
+                {
+                    continue;
+                }
+
+                float vulnerability = generatedVulnerabilities.TryGetValue(position, out float generatedValue)
+                    ? generatedValue
+                    : Mathf.Lerp(
+                        minimumVulnerability,
+                        maximumVulnerability,
+                        NextRandom01());
+                GetOrCreateNode(position, vulnerability, false);
+            }
+
+            // SetCracks等で渡された既存折れ線をグラフへ復元する。
+            for (int pathIndex = 0; pathIndex < cracks.Length; pathIndex++)
+            {
+                Vector2[] path = cracks[pathIndex];
+                if (path == null)
+                {
+                    continue;
+                }
+
+                for (int pointIndex = 0; pointIndex < path.Length; pointIndex++)
+                {
+                    bool isSurface = IsPointOnOutline(path[pointIndex]);
+                    GetOrCreateNode(path[pointIndex], isSurface ? 1f : NextRandom01(), isSurface);
+                }
+
+                for (int pointIndex = 0; pointIndex + 1 < path.Length; pointIndex++)
+                {
+                    CrackNode from = FindNodeAt(path[pointIndex]);
+                    CrackNode to = FindNodeAt(path[pointIndex + 1]);
+                    if (from != null && to != null)
+                    {
+                        AddConnection(
+                            from,
+                            to,
+                            Mathf.Max(GeometryEpsilon, Vector2.Distance(from.localPosition, to.localPosition)
+                                * baseFractureResistance));
+                    }
+                }
+            }
+
+            crackGraphInitialized = true;
+        }
+
+        private void GetOutlineSize(out float width, out float height)
+        {
+            if (outline == null || outline.Length == 0)
+            {
+                width = 0f;
+                height = 0f;
+                return;
+            }
+
+            Vector2 min = outline[0];
+            Vector2 max = outline[0];
+            for (int i = 1; i < outline.Length; i++)
+            {
+                min = Vector2.Min(min, outline[i]);
+                max = Vector2.Max(max, outline[i]);
+            }
+            width = max.x - min.x;
+            height = max.y - min.y;
+        }
+
+        private float NextRandom01()
+        {
+            crackRandom ??= new System.Random(crackRandomSeed);
+            return (float)crackRandom.NextDouble();
+        }
+
+        private CrackNode GetOrCreateNode(Vector2 position, float vulnerability, bool isSurfaceFlaw)
+        {
+            CrackNode existing = FindNodeAt(position);
+            if (existing != null)
+            {
+                existing.isSurfaceFlaw |= isSurfaceFlaw;
+                if (isSurfaceFlaw)
+                {
+                    existing.vulnerability = 1f;
+                }
+                return existing;
+            }
+
+            var node = new CrackNode
+            {
+                id = crackNodes.Count,
+                localPosition = position,
+                vulnerability = Mathf.Clamp01(vulnerability),
+                isSurfaceFlaw = isSurfaceFlaw
+            };
+            crackNodes.Add(node);
+            return node;
+        }
+
+        private CrackNode FindNodeAt(Vector2 position)
+        {
+            float epsilonSquared = GeometryEpsilon * GeometryEpsilon;
+            for (int i = 0; i < crackNodes.Count; i++)
+            {
+                if ((crackNodes[i].localPosition - position).sqrMagnitude <= epsilonSquared)
+                {
+                    return crackNodes[i];
+                }
+            }
+            return null;
+        }
+
+        private CrackNode GetNode(int id)
+        {
+            return id >= 0 && id < crackNodes.Count ? crackNodes[id] : null;
+        }
+
+        private CrackNode FindOrCreateSurfaceFlaw(Vector2 impactLocalPosition)
+        {
+            CrackNode nearest = null;
+            float nearestDistance = float.PositiveInfinity;
+            for (int i = 0; i < crackNodes.Count; i++)
+            {
+                if (!crackNodes[i].isSurfaceFlaw)
+                {
+                    continue;
+                }
+
+                float distance = Vector2.Distance(crackNodes[i].localPosition, impactLocalPosition);
+                if (distance < nearestDistance)
+                {
+                    nearest = crackNodes[i];
+                    nearestDistance = distance;
+                }
+            }
+
+            if (nearest != null && nearestDistance < surfaceFlawMinimumSpacing)
+            {
+                return nearest;
+            }
+
+            return GetOrCreateNode(impactLocalPosition, 1f, true);
+        }
+
+        private CrackNode FindNearestCrackTipOrFallback(CrackNode fallback)
+        {
+            CrackNode nearestTip = null;
+            float nearestDistance = crackTipDetectionRadius;
+            for (int i = 0; i < crackNodes.Count; i++)
+            {
+                CrackNode node = crackNodes[i];
+                if (GetNodeDegree(node.id) != 1)
+                {
+                    continue;
+                }
+
+                float distance = Vector2.Distance(node.localPosition, fallback.localPosition);
+                if (distance <= nearestDistance)
+                {
+                    nearestDistance = distance;
+                    nearestTip = node;
+                }
+            }
+            return nearestTip ?? fallback;
+        }
+
+        private int GetNodeDegree(int nodeId)
+        {
+            int degree = 0;
+            for (int i = 0; i < crackConnections.Count; i++)
+            {
+                if (crackConnections[i].nodeAId == nodeId || crackConnections[i].nodeBId == nodeId)
+                {
+                    degree++;
+                }
+            }
+            return degree;
+        }
+
+        private Vector2 ResolveReferenceDirection(CrackNode startNode, Vector2 bulletVelocity)
+        {
+            Vector2 fallbackDirection = bulletVelocity.sqrMagnitude > GeometryEpsilon * GeometryEpsilon
+                ? bulletVelocity.normalized
+                : Vector2.up;
+
+            if (GetNodeDegree(startNode.id) != 1)
+            {
+                return fallbackDirection;
+            }
+
+            for (int i = 0; i < crackConnections.Count; i++)
+            {
+                CrackConnection connection = crackConnections[i];
+                int previousId = connection.nodeAId == startNode.id
+                    ? connection.nodeBId
+                    : connection.nodeBId == startNode.id
+                        ? connection.nodeAId
+                        : -1;
+                if (previousId < 0)
+                {
+                    continue;
+                }
+
+                CrackNode previous = GetNode(previousId);
+                Vector2 direction = startNode.localPosition - previous.localPosition;
+                return direction.sqrMagnitude > GeometryEpsilon * GeometryEpsilon
+                    ? direction.normalized
+                    : fallbackDirection;
+            }
+            return fallbackDirection;
+        }
+
+        private float CalculateScanRadius(float impactEnergy)
+        {
+            float glassArea = Mathf.Abs(SignedArea(outline));
+            float resistance = Mathf.Max(baseFractureResistance, GeometryEpsilon);
+            float energyRatio = Mathf.Max(0f, impactEnergy / resistance);
+
+            // 面積の平方根とエネルギー比の平方根から一次走査距離を得る。
+            float scanRadius = Mathf.Sqrt(glassArea) * Mathf.Sqrt(energyRatio);
+            return Mathf.Clamp(scanRadius, minimumScanRadius, maximumScanRadius);
+        }
+
+        private List<CrackPathCandidate> BuildCrackPathCandidates(
+            CrackNode startNode,
+            Vector2 referenceDirection,
+            float scanRadius,
+            float impactEnergy)
+        {
+            var primaryCandidates = new List<CrackCandidate>();
+            for (int i = 0; i < crackNodes.Count; i++)
+            {
+                CrackNode target = crackNodes[i];
+                if (TryBuildCandidate(
+                    startNode,
+                    target,
+                    referenceDirection,
+                    scanRadius,
+                    true,
+                    out CrackCandidate candidate))
+                {
+                    primaryCandidates.Add(candidate);
+                    debugPrimaryCandidates.Add(new DebugLine(
+                        startNode.localPosition,
+                        target.localPosition));
+                }
+            }
+
+            // 扇形の隣接関係を安定させるため、一次候補は符号付き角度の昇順にする。
+            primaryCandidates.Sort((a, b) => a.signedAngle.CompareTo(b.signedAngle));
+
+            var angleMarkers = new List<AngleMarker>(primaryCandidates.Count + 2);
+            for (int i = 0; i < primaryCandidates.Count; i++)
+            {
+                angleMarkers.Add(new AngleMarker(primaryCandidates[i].signedAngle, primaryCandidates[i]));
+            }
+            AddOuterBoundaryAngleMarkers(startNode, referenceDirection, angleMarkers);
+            angleMarkers.Sort((a, b) => a.Angle.CompareTo(b.Angle));
+
+            var paths = new List<CrackPathCandidate>();
+            for (int i = 0; i < primaryCandidates.Count; i++)
+            {
+                CrackCandidate primary = primaryCandidates[i];
+                paths.Add(new CrackPathCandidate
+                {
+                    primary = primary,
+                    hasSecondary = false,
+                    totalFractureCost = primary.fractureCost
+                });
+
+                float secondaryRadius = Mathf.Max(0f, scanRadius - primary.distance);
+                if (secondaryRadius <= GeometryEpsilon)
+                {
+                    continue;
+                }
+
+                debugSecondaryScans.Add(new DebugCircle(primary.to.localPosition, secondaryRadius));
+                ResolveCandidateSector(
+                    primary,
+                    angleMarkers,
+                    out float sectorStart,
+                    out float sectorEnd,
+                    out bool fullSector);
+                AddSectorDebugLines(startNode.localPosition, referenceDirection, sectorStart, sectorEnd, scanRadius);
+
+                Vector2 primaryDirection = (primary.to.localPosition - primary.from.localPosition).normalized;
+                for (int nodeIndex = 0; nodeIndex < crackNodes.Count; nodeIndex++)
+                {
+                    CrackNode secondaryNode = crackNodes[nodeIndex];
+                    if (secondaryNode.id == primary.to.id || secondaryNode.id == startNode.id)
+                    {
+                        continue;
+                    }
+
+                    Vector2 fromPrimary = secondaryNode.localPosition - primary.to.localPosition;
+                    float secondaryDistance = fromPrimary.magnitude;
+                    if (secondaryDistance <= GeometryEpsilon || secondaryDistance > secondaryRadius)
+                    {
+                        continue;
+                    }
+
+                    Vector2 fromStart = secondaryNode.localPosition - startNode.localPosition;
+                    float secondaryAngle = Vector2.SignedAngle(referenceDirection, fromStart);
+                    if (!fullSector && !IsAngleInsideSector(secondaryAngle, sectorStart, sectorEnd))
+                    {
+                        continue;
+                    }
+
+                    if (!TryBuildCandidate(
+                        primary.to,
+                        secondaryNode,
+                        primaryDirection,
+                        secondaryRadius,
+                        false,
+                        out CrackCandidate secondary))
+                    {
+                        continue;
+                    }
+
+                    float directionAlignment = Mathf.Clamp01(
+                        (Vector2.Dot(primaryDirection, fromPrimary.normalized) + 1f) * 0.5f);
+                    float distanceFactor = Mathf.Clamp01(1f - secondaryDistance / secondaryRadius);
+                    float remainingEnergyForSecondary = Mathf.Max(
+                        0f,
+                        impactEnergy - primary.fractureCost);
+                    float energyFactor = Mathf.Clamp01(
+                        remainingEnergyForSecondary / Mathf.Max(impactEnergy, GeometryEpsilon));
+                    float probability = Mathf.Clamp01(
+                        secondaryNode.vulnerability
+                        * directionAlignment
+                        * distanceFactor
+                        * energyFactor);
+
+                    if (NextRandom01() > probability)
+                    {
+                        continue;
+                    }
+
+                    paths.Add(new CrackPathCandidate
+                    {
+                        primary = primary,
+                        secondary = secondary,
+                        hasSecondary = true,
+                        totalFractureCost = primary.fractureCost + secondary.fractureCost
+                    });
+                }
+            }
+            return paths;
+        }
+
+        private bool TryBuildCandidate(
+            CrackNode from,
+            CrackNode to,
+            Vector2 referenceDirection,
+            float maximumDistance,
+            bool recordRejected,
+            out CrackCandidate candidate)
+        {
+            candidate = null;
+            if (from == null || to == null || from.id == to.id || AreDirectlyConnected(from.id, to.id))
+            {
+                return false;
+            }
+
+            Vector2 delta = to.localPosition - from.localPosition;
+            float distance = delta.magnitude;
+            if (distance <= GeometryEpsilon || distance > maximumDistance ||
+                !IsPointInsideOrOnOutline(to.localPosition) ||
+                IntersectsOuterBoundaryBeforeTarget(from.localPosition, to.localPosition) ||
+                IntersectsExistingCrackImproperly(from, to))
+            {
+                if (recordRejected && distance > GeometryEpsilon)
+                {
+                    debugRejectedCandidates.Add(new DebugLine(from.localPosition, to.localPosition));
+                }
+                return false;
+            }
+
+            Vector2 direction = delta / distance;
+            Vector2 safeReference = referenceDirection.sqrMagnitude > GeometryEpsilon * GeometryEpsilon
+                ? referenceDirection.normalized
+                : direction;
+            float signedAngle = Vector2.SignedAngle(safeReference, direction);
+
+            candidate = new CrackCandidate
+            {
+                from = from,
+                to = to,
+                distance = distance,
+                signedAngle = signedAngle,
+                absoluteAngle = Mathf.Abs(signedAngle),
+                fractureCost = CalculateFractureCost(from, to, safeReference, direction, distance)
+            };
+            return true;
+        }
+
+        private float CalculateFractureCost(
+            CrackNode from,
+            CrackNode to,
+            Vector2 referenceDirection,
+            Vector2 candidateDirection,
+            float distance)
+        {
+            float averageVulnerability = (from.vulnerability + to.vulnerability) * 0.5f;
+
+            // 脆弱性が高いほど倍率を下げ、同じ距離でも進展しやすくする。
+            float vulnerabilityMultiplier = minimumVulnerabilityCostMultiplier
+                + (1f - minimumVulnerabilityCostMultiplier) * (1f - averageVulnerability);
+
+            // 基準方向との一致度を0～1へ正規化し、逆方向ほど角度コストを増やす。
+            float alignment = (Vector2.Dot(referenceDirection, candidateDirection) + 1f) * 0.5f;
+            float angleMultiplier = 1f + angleCostWeight * (1f - alignment);
+
+            return baseFractureResistance * distance * vulnerabilityMultiplier * angleMultiplier;
+        }
+
+        private void AddOuterBoundaryAngleMarkers(
+            CrackNode startNode,
+            Vector2 referenceDirection,
+            List<AngleMarker> markers)
+        {
+            Vector2 position = startNode.localPosition;
+            int vertexIndex = FindOutlineVertex(position);
+            if (vertexIndex >= 0)
+            {
+                AddDirectionMarker(outline[(vertexIndex - 1 + outline.Length) % outline.Length] - position);
+                AddDirectionMarker(outline[(vertexIndex + 1) % outline.Length] - position);
+                return;
+            }
+
+            if (!TryLocateOnBoundary(outline, position, out BoundaryLocation location))
+            {
+                return;
+            }
+
+            AddDirectionMarker(outline[location.EdgeIndex] - position);
+            AddDirectionMarker(outline[(location.EdgeIndex + 1) % outline.Length] - position);
+
+            void AddDirectionMarker(Vector2 direction)
+            {
+                if (direction.sqrMagnitude <= GeometryEpsilon * GeometryEpsilon)
+                {
+                    return;
+                }
+                markers.Add(new AngleMarker(
+                    Vector2.SignedAngle(referenceDirection, direction.normalized),
+                    null));
+            }
+        }
+
+        private int FindOutlineVertex(Vector2 position)
+        {
+            float epsilonSquared = GeometryEpsilon * GeometryEpsilon;
+            for (int i = 0; i < outline.Length; i++)
+            {
+                if ((outline[i] - position).sqrMagnitude <= epsilonSquared)
+                {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        private static void ResolveCandidateSector(
+            CrackCandidate primary,
+            IReadOnlyList<AngleMarker> sortedMarkers,
+            out float sectorStart,
+            out float sectorEnd,
+            out bool fullSector)
+        {
+            int markerIndex = -1;
+            for (int i = 0; i < sortedMarkers.Count; i++)
+            {
+                if (ReferenceEquals(sortedMarkers[i].Candidate, primary))
+                {
+                    markerIndex = i;
+                    break;
+                }
+            }
+
+            fullSector = sortedMarkers.Count <= 1 || markerIndex < 0;
+            if (fullSector)
+            {
+                sectorStart = -180f;
+                sectorEnd = 180f;
+                return;
+            }
+
+            float previousAngle = sortedMarkers[(markerIndex - 1 + sortedMarkers.Count) % sortedMarkers.Count].Angle;
+            float nextAngle = sortedMarkers[(markerIndex + 1) % sortedMarkers.Count].Angle;
+            sectorStart = GetCircularMidAngle(previousAngle, primary.signedAngle);
+            sectorEnd = GetCircularMidAngle(primary.signedAngle, nextAngle);
+        }
+
+        private static float GetCircularMidAngle(float angleA, float angleB)
+        {
+            return NormalizeSignedAngle(angleA + Mathf.DeltaAngle(angleA, angleB) * 0.5f);
+        }
+
+        private static bool IsAngleInsideSector(float angle, float sectorStart, float sectorEnd)
+        {
+            float normalizedAngle = NormalizeUnsignedAngle(angle);
+            float normalizedStart = NormalizeUnsignedAngle(sectorStart);
+            float normalizedEnd = NormalizeUnsignedAngle(sectorEnd);
+            if (normalizedStart <= normalizedEnd)
+            {
+                return normalizedAngle >= normalizedStart - GeometryEpsilon
+                    && normalizedAngle <= normalizedEnd + GeometryEpsilon;
+            }
+            return normalizedAngle >= normalizedStart - GeometryEpsilon
+                || normalizedAngle <= normalizedEnd + GeometryEpsilon;
+        }
+
+        private static float NormalizeSignedAngle(float angle)
+        {
+            return Mathf.Repeat(angle + 180f, 360f) - 180f;
+        }
+
+        private static float NormalizeUnsignedAngle(float angle)
+        {
+            return Mathf.Repeat(angle, 360f);
+        }
+
+        private bool AreDirectlyConnected(int nodeAId, int nodeBId)
+        {
+            for (int i = 0; i < crackConnections.Count; i++)
+            {
+                CrackConnection connection = crackConnections[i];
+                if ((connection.nodeAId == nodeAId && connection.nodeBId == nodeBId) ||
+                    (connection.nodeAId == nodeBId && connection.nodeBId == nodeAId))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private void AddConnection(CrackNode from, CrackNode to, float fractureCost)
+        {
+            if (from == null || to == null || from.id == to.id || AreDirectlyConnected(from.id, to.id))
+            {
+                return;
+            }
+
+            crackConnections.Add(new CrackConnection
+            {
+                nodeAId = Mathf.Min(from.id, to.id),
+                nodeBId = Mathf.Max(from.id, to.id),
+                fractureCost = Mathf.Max(0f, fractureCost)
+            });
+        }
+
+        private bool IntersectsOuterBoundaryBeforeTarget(Vector2 start, Vector2 target)
+        {
+            for (int i = 0; i < outline.Length; i++)
+            {
+                Vector2 edgeStart = outline[i];
+                Vector2 edgeEnd = outline[(i + 1) % outline.Length];
+                if (!TryGetSegmentIntersection(start, target, edgeStart, edgeEnd, out Vector2 hit))
+                {
+                    continue;
+                }
+
+                bool touchesCandidateEndpoint = Approximately(hit, start) || Approximately(hit, target);
+                if (!touchesCandidateEndpoint)
+                {
+                    return true;
+                }
+            }
+
+            // 凹形状では端点交差だけでも線分の途中が外部へ出る場合があるため内部点も確認する。
+            return !IsPointInsideOrOnOutline(Vector2.Lerp(start, target, 0.25f))
+                || !IsPointInsideOrOnOutline(Vector2.Lerp(start, target, 0.5f))
+                || !IsPointInsideOrOnOutline(Vector2.Lerp(start, target, 0.75f));
+        }
+
+        private bool IsPointInsideOrOnOutline(Vector2 point)
+        {
+            if (outline == null || outline.Length < 3)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < outline.Length; i++)
+            {
+                if (IsPointOnSegment(
+                    point,
+                    outline[i],
+                    outline[(i + 1) % outline.Length]))
+                {
+                    return true;
+                }
+            }
+
+            bool inside = false;
+            for (int i = 0, j = outline.Length - 1; i < outline.Length; j = i++)
+            {
+                Vector2 current = outline[i];
+                Vector2 previous = outline[j];
+                bool crossesRay = (current.y > point.y) != (previous.y > point.y);
+                if (!crossesRay)
+                {
+                    continue;
+                }
+
+                float intersectionX = (previous.x - current.x)
+                    * (point.y - current.y)
+                    / (previous.y - current.y)
+                    + current.x;
+                if (point.x < intersectionX)
+                {
+                    inside = !inside;
+                }
+            }
+            return inside;
+        }
+
+        private bool IsPointOnOutline(Vector2 point)
+        {
+            if (outline == null)
+            {
+                return false;
+            }
+            for (int i = 0; i < outline.Length; i++)
+            {
+                if (IsPointOnSegment(point, outline[i], outline[(i + 1) % outline.Length]))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private static bool IsPointOnSegment(Vector2 point, Vector2 start, Vector2 end)
+        {
+            Vector2 edge = end - start;
+            float lengthSquared = edge.sqrMagnitude;
+            if (lengthSquared <= GeometryEpsilon * GeometryEpsilon)
+            {
+                return Approximately(point, start);
+            }
+
+            float t = Mathf.Clamp01(Vector2.Dot(point - start, edge) / lengthSquared);
+            Vector2 closest = start + edge * t;
+            return (point - closest).sqrMagnitude <= GeometryEpsilon * GeometryEpsilon;
+        }
+
+        private bool IntersectsExistingCrackImproperly(CrackNode from, CrackNode to)
+        {
+            for (int i = 0; i < crackConnections.Count; i++)
+            {
+                CrackConnection connection = crackConnections[i];
+                CrackNode existingA = GetNode(connection.nodeAId);
+                CrackNode existingB = GetNode(connection.nodeBId);
+                if (existingA == null || existingB == null)
+                {
+                    continue;
+                }
+
+                if (SegmentsHaveImproperCollinearOverlap(
+                    from.localPosition,
+                    to.localPosition,
+                    existingA.localPosition,
+                    existingB.localPosition))
+                {
+                    return true;
+                }
+
+                if (!TryGetSegmentIntersection(
+                    from.localPosition,
+                    to.localPosition,
+                    existingA.localPosition,
+                    existingB.localPosition,
+                    out Vector2 hit))
+                {
+                    continue;
+                }
+
+                bool candidateEndpoint = Approximately(hit, from.localPosition)
+                    || Approximately(hit, to.localPosition);
+                bool existingEndpoint = Approximately(hit, existingA.localPosition)
+                    || Approximately(hit, existingB.localPosition);
+                if (!(candidateEndpoint && existingEndpoint))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private static bool SegmentsHaveImproperCollinearOverlap(
+            Vector2 a,
+            Vector2 b,
+            Vector2 c,
+            Vector2 d)
+        {
+            Vector2 ab = b - a;
+            if (Mathf.Abs(Cross(ab, c - a)) > GeometryEpsilon ||
+                Mathf.Abs(Cross(ab, d - a)) > GeometryEpsilon)
+            {
+                return false;
+            }
+
+            float lengthSquared = ab.sqrMagnitude;
+            if (lengthSquared <= GeometryEpsilon * GeometryEpsilon)
+            {
+                return false;
+            }
+
+            float cT = Vector2.Dot(c - a, ab) / lengthSquared;
+            float dT = Vector2.Dot(d - a, ab) / lengthSquared;
+            float overlapStart = Mathf.Max(0f, Mathf.Min(cT, dT));
+            float overlapEnd = Mathf.Min(1f, Mathf.Max(cT, dT));
+            return overlapEnd - overlapStart > GeometryEpsilon;
+        }
+
+        private static bool Approximately(Vector2 lhs, Vector2 rhs)
+        {
+            return (lhs - rhs).sqrMagnitude <= GeometryEpsilon * GeometryEpsilon;
+        }
+
+        private void ApplyCrackPathsWithinBudget(List<CrackPathCandidate> paths, float impactEnergy)
+        {
+            paths.Sort((a, b) => a.totalFractureCost.CompareTo(b.totalFractureCost));
+            float remainingEnergy = Mathf.Max(0f, impactEnergy);
+
+            for (int i = 0; i < paths.Count; i++)
+            {
+                CrackPathCandidate path = paths[i];
+                if (!CanApplyPathWithoutNewIntersection(path))
+                {
+                    continue;
+                }
+
+                float additionalCost = CalculateMissingConnectionCost(path);
+                if (additionalCost > remainingEnergy + GeometryEpsilon)
+                {
+                    continue;
+                }
+
+                CreateMissingConnections(path);
+                remainingEnergy = Mathf.Max(0f, remainingEnergy - additionalCost);
+            }
+        }
+
+        private bool CanApplyPathWithoutNewIntersection(CrackPathCandidate path)
+        {
+            if (!AreDirectlyConnected(path.primary.from.id, path.primary.to.id) &&
+                IntersectsExistingCrackImproperly(path.primary.from, path.primary.to))
+            {
+                return false;
+            }
+
+            return !path.hasSecondary
+                || AreDirectlyConnected(path.secondary.from.id, path.secondary.to.id)
+                || !IntersectsExistingCrackImproperly(path.secondary.from, path.secondary.to);
+        }
+
+        private float CalculateMissingConnectionCost(CrackPathCandidate path)
+        {
+            float cost = AreDirectlyConnected(path.primary.from.id, path.primary.to.id)
+                ? 0f
+                : path.primary.fractureCost;
+            if (path.hasSecondary &&
+                !AreDirectlyConnected(path.secondary.from.id, path.secondary.to.id))
+            {
+                cost += path.secondary.fractureCost;
+            }
+            return cost;
+        }
+
+        private void CreateMissingConnections(CrackPathCandidate path)
+        {
+            CreateIfMissing(path.primary);
+            if (path.hasSecondary)
+            {
+                CreateIfMissing(path.secondary);
+            }
+
+            void CreateIfMissing(CrackCandidate candidate)
+            {
+                if (AreDirectlyConnected(candidate.from.id, candidate.to.id))
+                {
+                    return;
+                }
+                AddConnection(candidate.from, candidate.to, candidate.fractureCost);
+                debugAcceptedConnections.Add(new DebugLine(
+                    candidate.from.localPosition,
+                    candidate.to.localPosition));
+            }
+        }
+
+        private void ResetImpactDebugData(Vector2 impactLocalPosition, float scanRadius)
+        {
+            debugPrimaryCandidates.Clear();
+            debugRejectedCandidates.Clear();
+            debugAcceptedConnections.Clear();
+            debugSecondaryScans.Clear();
+            debugSectorBoundaries.Clear();
+            debugLastImpact = impactLocalPosition;
+            debugLastScanRadius = scanRadius;
+            hasDebugImpact = true;
+        }
+
+        private void AddSectorDebugLines(
+            Vector2 center,
+            Vector2 referenceDirection,
+            float sectorStart,
+            float sectorEnd,
+            float radius)
+        {
+            Vector2 startDirection = Rotate(referenceDirection, sectorStart);
+            Vector2 endDirection = Rotate(referenceDirection, sectorEnd);
+            debugSectorBoundaries.Add(new DebugLine(center, center + startDirection * radius));
+            debugSectorBoundaries.Add(new DebugLine(center, center + endDirection * radius));
+        }
+
+        private static Vector2 Rotate(Vector2 vector, float degrees)
+        {
+            float radians = degrees * Mathf.Deg2Rad;
+            float cos = Mathf.Cos(radians);
+            float sin = Mathf.Sin(radians);
+            Vector2 normalized = vector.sqrMagnitude > GeometryEpsilon * GeometryEpsilon
+                ? vector.normalized
+                : Vector2.up;
+            return new Vector2(
+                normalized.x * cos - normalized.y * sin,
+                normalized.x * sin + normalized.y * cos);
+        }
+
+        private Vector2[][] BuildRenderableCrackPaths()
+        {
+            if (crackConnections.Count == 0)
+            {
+                return Array.Empty<Vector2[]>();
+            }
+
+            var adjacency = new Dictionary<int, List<int>>();
+            for (int edgeIndex = 0; edgeIndex < crackConnections.Count; edgeIndex++)
+            {
+                CrackConnection connection = crackConnections[edgeIndex];
+                AddAdjacent(connection.nodeAId, edgeIndex);
+                AddAdjacent(connection.nodeBId, edgeIndex);
+            }
+
+            var paths = new List<Vector2[]>();
+            var visitedEdges = new bool[crackConnections.Count];
+
+            // 次数1の先端や分岐点から開始し、次数2の区間を一続きの折れ線へまとめる。
+            foreach (KeyValuePair<int, List<int>> pair in adjacency)
+            {
+                if (pair.Value.Count == 2)
+                {
+                    continue;
+                }
+
+                for (int i = 0; i < pair.Value.Count; i++)
+                {
+                    int edgeIndex = pair.Value[i];
+                    if (!visitedEdges[edgeIndex])
+                    {
+                        paths.Add(TracePath(pair.Key, edgeIndex, adjacency, visitedEdges));
+                    }
+                }
+            }
+
+            // 全ノードが次数2の閉ループも、未訪問辺から回収する。
+            for (int edgeIndex = 0; edgeIndex < crackConnections.Count; edgeIndex++)
+            {
+                if (!visitedEdges[edgeIndex])
+                {
+                    paths.Add(TracePath(
+                        crackConnections[edgeIndex].nodeAId,
+                        edgeIndex,
+                        adjacency,
+                        visitedEdges));
+                }
+            }
+
+            return paths.ToArray();
+
+            void AddAdjacent(int nodeId, int edgeIndex)
+            {
+                if (!adjacency.TryGetValue(nodeId, out List<int> edges))
+                {
+                    edges = new List<int>();
+                    adjacency.Add(nodeId, edges);
+                }
+                edges.Add(edgeIndex);
+            }
+        }
+
+        private Vector2[] TracePath(
+            int startNodeId,
+            int firstEdgeIndex,
+            IReadOnlyDictionary<int, List<int>> adjacency,
+            bool[] visitedEdges)
+        {
+            var points = new List<Vector2>();
+            int currentNodeId = startNodeId;
+            int currentEdgeIndex = firstEdgeIndex;
+            CrackNode startNode = GetNode(startNodeId);
+            if (startNode == null)
+            {
+                return Array.Empty<Vector2>();
+            }
+            points.Add(startNode.localPosition);
+
+            int safety = 0;
+            while (currentEdgeIndex >= 0 && safety++ <= crackConnections.Count)
+            {
+                visitedEdges[currentEdgeIndex] = true;
+                CrackConnection connection = crackConnections[currentEdgeIndex];
+                int nextNodeId = connection.nodeAId == currentNodeId
+                    ? connection.nodeBId
+                    : connection.nodeAId;
+                CrackNode nextNode = GetNode(nextNodeId);
+                if (nextNode == null)
+                {
+                    break;
+                }
+                points.Add(nextNode.localPosition);
+
+                if (!adjacency.TryGetValue(nextNodeId, out List<int> adjacentEdges) ||
+                    adjacentEdges.Count != 2)
+                {
+                    break;
+                }
+
+                int nextEdgeIndex = -1;
+                for (int i = 0; i < adjacentEdges.Count; i++)
+                {
+                    if (adjacentEdges[i] != currentEdgeIndex && !visitedEdges[adjacentEdges[i]])
+                    {
+                        nextEdgeIndex = adjacentEdges[i];
+                        break;
+                    }
+                }
+
+                if (nextEdgeIndex < 0)
+                {
+                    break;
+                }
+                currentNodeId = nextNodeId;
+                currentEdgeIndex = nextEdgeIndex;
+            }
+            return points.ToArray();
+        }
+
+        private bool TrySeparateCompletedPath()
+        {
+            for (int i = 0; i < cracks.Length; i++)
+            {
+                Vector2[] path = cracks[i];
+                if (path == null || path.Length < 2 ||
+                    !IsPointOnOutline(path[0]) ||
+                    !IsPointOnOutline(path[^1]))
+                {
+                    continue;
+                }
+
+                if (TrySeparateAlongCrack(path))
+                {
+                    return true;
+                }
+            }
+
+            // 分岐点で描画用折れ線が分かれていても、グラフ上で外周同士がつながれば分離へ渡す。
+            var boundaryTips = new List<int>();
+            for (int i = 0; i < crackNodes.Count; i++)
+            {
+                if (GetNodeDegree(crackNodes[i].id) == 1 &&
+                    IsPointOnOutline(crackNodes[i].localPosition))
+                {
+                    boundaryTips.Add(crackNodes[i].id);
+                }
+            }
+
+            for (int startIndex = 0; startIndex < boundaryTips.Count; startIndex++)
+            {
+                for (int endIndex = startIndex + 1; endIndex < boundaryTips.Count; endIndex++)
+                {
+                    if (TryFindNodePath(
+                        boundaryTips[startIndex],
+                        boundaryTips[endIndex],
+                        out Vector2[] continuousPath) &&
+                        TrySeparateAlongCrack(continuousPath))
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        private bool TryFindNodePath(int startNodeId, int targetNodeId, out Vector2[] path)
+        {
+            path = Array.Empty<Vector2>();
+            var queue = new Queue<int>();
+            var visited = new HashSet<int> { startNodeId };
+            var previous = new Dictionary<int, int>();
+            queue.Enqueue(startNodeId);
+
+            while (queue.Count > 0)
+            {
+                int current = queue.Dequeue();
+                if (current == targetNodeId)
+                {
+                    break;
+                }
+
+                for (int i = 0; i < crackConnections.Count; i++)
+                {
+                    CrackConnection connection = crackConnections[i];
+                    int next = connection.nodeAId == current
+                        ? connection.nodeBId
+                        : connection.nodeBId == current
+                            ? connection.nodeAId
+                            : -1;
+                    if (next < 0 || !visited.Add(next))
+                    {
+                        continue;
+                    }
+                    previous[next] = current;
+                    queue.Enqueue(next);
+                }
+            }
+
+            if (!visited.Contains(targetNodeId))
+            {
+                return false;
+            }
+
+            var nodeIds = new List<int> { targetNodeId };
+            int nodeId = targetNodeId;
+            while (nodeId != startNodeId)
+            {
+                if (!previous.TryGetValue(nodeId, out nodeId))
+                {
+                    return false;
+                }
+                nodeIds.Add(nodeId);
+            }
+            nodeIds.Reverse();
+
+            path = new Vector2[nodeIds.Count];
+            for (int i = 0; i < nodeIds.Count; i++)
+            {
+                path[i] = GetNode(nodeIds[i]).localPosition;
+            }
+            return true;
+        }
+
+        private void OnDrawGizmosSelected()
+        {
+            if (outline != null && outline.Length >= 2)
+            {
+                Gizmos.color = Color.cyan;
+                for (int i = 0; i < outline.Length; i++)
+                {
+                    DrawLocalLine(outline[i], outline[(i + 1) % outline.Length]);
+                }
+            }
+
+            Gizmos.color = Color.yellow;
+            if (initCrackPoint != null)
+            {
+                for (int i = 0; i < initCrackPoint.Length; i++)
+                {
+                    Gizmos.DrawWireSphere(transform.TransformPoint(initCrackPoint[i]), 0.06f);
+                }
+            }
+
+            for (int i = 0; i < crackNodes.Count; i++)
+            {
+                CrackNode node = crackNodes[i];
+                if (node.isSurfaceFlaw)
+                {
+                    Gizmos.color = Color.magenta;
+                    Gizmos.DrawSphere(transform.TransformPoint(node.localPosition), 0.075f);
+                }
+                if (GetNodeDegree(node.id) == 1)
+                {
+                    Gizmos.color = new Color(1f, 0.5f, 0f);
+                    Gizmos.DrawWireSphere(transform.TransformPoint(node.localPosition), 0.11f);
+                }
+            }
+
+            if (hasDebugImpact)
+            {
+                Gizmos.color = Color.white;
+                Gizmos.DrawWireSphere(transform.TransformPoint(debugLastImpact), debugLastScanRadius);
+            }
+
+            DrawDebugLines(debugPrimaryCandidates, new Color(0.2f, 0.6f, 1f));
+            DrawDebugLines(debugRejectedCandidates, Color.red);
+            DrawDebugLines(debugAcceptedConnections, Color.green);
+            DrawDebugLines(debugSectorBoundaries, Color.magenta);
+
+            Gizmos.color = new Color(1f, 0.8f, 0.1f);
+            for (int i = 0; i < debugSecondaryScans.Count; i++)
+            {
+                Gizmos.DrawWireSphere(
+                    transform.TransformPoint(debugSecondaryScans[i].Center),
+                    debugSecondaryScans[i].Radius);
+            }
+        }
+
+        private void DrawDebugLines(IReadOnlyList<DebugLine> lines, Color color)
+        {
+            Gizmos.color = color;
+            for (int i = 0; i < lines.Count; i++)
+            {
+                DrawLocalLine(lines[i].From, lines[i].To);
+            }
+        }
+
+        private void DrawLocalLine(Vector2 from, Vector2 to)
+        {
+            Gizmos.DrawLine(transform.TransformPoint(from), transform.TransformPoint(to));
+        }
+
+        private void OnValidate()
+        {
+            surfaceFlawMinimumSpacing = Mathf.Max(0f, surfaceFlawMinimumSpacing);
+            crackTipDetectionRadius = Mathf.Max(0f, crackTipDetectionRadius);
+            baseFractureResistance = Mathf.Max(0.0001f, baseFractureResistance);
+            minimumScanRadius = Mathf.Max(0f, minimumScanRadius);
+            maximumScanRadius = Mathf.Max(minimumScanRadius, maximumScanRadius);
+            minimumVulnerabilityCostMultiplier = Mathf.Clamp(
+                minimumVulnerabilityCostMultiplier,
+                0.01f,
+                1f);
+            angleCostWeight = Mathf.Max(0f, angleCostWeight);
         }
 
         /// <summary>
@@ -226,7 +1534,12 @@ namespace GlassShooter.Gameplay
             completedCrack[^1] = closestHit;
             cracks[crackIndex] = completedCrack;
             RenderCracks();
-            return TrySeparateAlongCrack(completedCrack);
+            bool separated = TrySeparateAlongCrack(completedCrack);
+            if (!separated)
+            {
+                crackGraphInitialized = false;
+            }
+            return separated;
         }
 
         private static bool TrySplitPolygon(
@@ -438,8 +1751,10 @@ namespace GlassShooter.Gameplay
 
             Rigidbody2D body = fragment.AddComponent<Rigidbody2D>();
             body.bodyType = RigidbodyType2D.Dynamic;
-            body.gravityScale = 1f;
-            body.mass = Mathf.Max(0.05f, Mathf.Abs(SignedArea(centeredRegion)));
+            body.gravityScale = glassStatus != null ? glassStatus.GravityMultiplier : 1f;
+            body.mass = glassStatus != null
+                ? glassStatus.CalculateMass(SignedArea(centeredRegion))
+                : Mathf.Max(0.05f, Mathf.Abs(SignedArea(centeredRegion)));
             body.angularVelocity = UnityEngine.Random.Range(-90f, 90f);
 
             fragment.AddComponent<GlassFragment>();
@@ -488,6 +1803,11 @@ namespace GlassShooter.Gameplay
             if (glassRoot == null)
             {
                 glassRoot = gameObject;
+            }
+
+            if (glassStatus == null)
+            {
+                glassStatus = GetComponent<GlassStatus>();
             }
 
             if (outlineLineRenderer == null)
