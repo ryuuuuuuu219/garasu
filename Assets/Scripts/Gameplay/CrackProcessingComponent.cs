@@ -40,6 +40,7 @@ namespace GlassShooter.Gameplay
         private readonly List<CrackConnection> crackConnections = new List<CrackConnection>();
         private System.Random crackRandom;
         private bool crackGraphInitialized;
+        private bool isReleasedFromAnchor;
 
         // 選択中オブジェクトのGizmo表示にだけ使用する直近着弾の診断情報。
         private readonly List<DebugLine> debugPrimaryCandidates = new List<DebugLine>();
@@ -155,6 +156,7 @@ namespace GlassShooter.Gameplay
         {
             ResolveMissingReferences();
             EnsureGeometryInitialized();
+            ApplyAnchorState();
             RenderCracks();
         }
 
@@ -166,7 +168,10 @@ namespace GlassShooter.Gameplay
         }
 
         /// <summary>スポーン時に外周とクラックを安全に設定します。</summary>
-        public void Initialize(Vector2[] outlinePoints, Vector2[][] crackPaths = null)
+        public void Initialize(
+            Vector2[] outlinePoints,
+            Vector2[][] crackPaths = null,
+            bool releasedFromAnchor = false)
         {
             if (outlinePoints == null || outlinePoints.Length < 3)
             {
@@ -177,6 +182,8 @@ namespace GlassShooter.Gameplay
             outline = CleanPolygon(outlinePoints);
             cracks = CloneCracks(crackPaths);
             crackGraphInitialized = false;
+            isReleasedFromAnchor |= releasedFromAnchor;
+            ApplyAnchorState();
 
             if (outlineLineRenderer != null)
             {
@@ -189,6 +196,28 @@ namespace GlassShooter.Gameplay
             }
 
             RenderCracks();
+        }
+
+        private void ApplyAnchorState()
+        {
+            if (!TryGetComponent(out Rigidbody2D body))
+            {
+                return;
+            }
+
+            if (isReleasedFromAnchor)
+            {
+                body.constraints = RigidbodyConstraints2D.None;
+                body.gravityScale = glassStatus != null
+                    ? glassStatus.GravityMultiplier
+                    : 1f;
+                return;
+            }
+
+            body.constraints = RigidbodyConstraints2D.FreezeAll;
+            body.gravityScale = 0f;
+            body.linearVelocity = Vector2.zero;
+            body.angularVelocity = 0f;
         }
 
         public void SetCracks(Vector2[][] crackPaths)
@@ -1723,8 +1752,14 @@ namespace GlassShooter.Gameplay
                 return false;
             }
 
-            CreateFragment(firstRegion, 0);
-            CreateFragment(secondRegion, 1);
+            float firstArea = Mathf.Abs(SignedArea(firstRegion));
+            float secondArea = Mathf.Abs(SignedArea(secondRegion));
+            bool firstIsLargest = firstArea >= secondArea;
+            bool firstIsReleased = isReleasedFromAnchor || !firstIsLargest;
+            bool secondIsReleased = isReleasedFromAnchor || firstIsLargest;
+
+            CreateFragment(firstRegion, 0, firstIsReleased);
+            CreateFragment(secondRegion, 1, secondIsReleased);
             Destroy(gameObject);
             return true;
         }
@@ -2101,7 +2136,7 @@ namespace GlassShooter.Gameplay
             return inside;
         }
 
-        private void CreateFragment(Vector2[] region, int pieceIndex)
+        private void CreateFragment(Vector2[] region, int pieceIndex, bool releasedFromAnchor)
         {
             Vector2 centroid = CalculateCentroid(region);
             Vector2[] centeredRegion = new Vector2[region.Length];
@@ -2175,17 +2210,24 @@ namespace GlassShooter.Gameplay
 
             Rigidbody2D body = fragment.AddComponent<Rigidbody2D>();
             body.bodyType = RigidbodyType2D.Dynamic;
-            body.gravityScale = fragmentStatus.GravityMultiplier;
+            body.gravityScale = releasedFromAnchor
+                ? fragmentStatus.GravityMultiplier
+                : 0f;
+            body.constraints = releasedFromAnchor
+                ? RigidbodyConstraints2D.None
+                : RigidbodyConstraints2D.FreezeAll;
             body.mass = fragmentStatus.CalculateMass(fragmentArea);
 
+            Vector2 inheritedLinearVelocity = Vector2.zero;
+            float inheritedAngularVelocity = 0f;
             if (TryGetComponent(out Rigidbody2D sourceBody))
             {
-                body.linearVelocity = sourceBody.linearVelocity;
-                body.angularVelocity = sourceBody.angularVelocity;
+                inheritedLinearVelocity = sourceBody.linearVelocity;
+                inheritedAngularVelocity = sourceBody.angularVelocity;
             }
-            else
+            else if (releasedFromAnchor)
             {
-                body.angularVelocity = UnityEngine.Random.Range(-90f, 90f);
+                inheritedAngularVelocity = UnityEngine.Random.Range(-90f, 90f);
             }
 
             fragment.AddComponent<GlassFragment>();
@@ -2194,7 +2236,14 @@ namespace GlassShooter.Gameplay
             {
                 CrackProcessingComponent fragmentProcessing = fragment.AddComponent<CrackProcessingComponent>();
                 CopyGrowthSettingsTo(fragmentProcessing, pieceIndex);
-                fragmentProcessing.Initialize(centeredRegion, fragmentCracks);
+                fragmentProcessing.Initialize(centeredRegion, fragmentCracks, releasedFromAnchor);
+            }
+
+            // CrackProcessingComponent.Awake の初期固定後に、解放済み破片のみ運動を引き継ぐ。
+            if (releasedFromAnchor)
+            {
+                body.linearVelocity = inheritedLinearVelocity;
+                body.angularVelocity = inheritedAngularVelocity;
             }
         }
 
