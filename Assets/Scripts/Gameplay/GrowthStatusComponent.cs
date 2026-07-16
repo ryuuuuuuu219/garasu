@@ -27,6 +27,14 @@ namespace GlassShooter.Gameplay
         GlassFragmentAttack,
         GlassFragmentFallSpeed,
         GlassMinimumBreakableArea,
+        PlayerMaximumDurability,
+        PlayerFractureToughness,
+        PlayerHitboxScale,
+        PlayerCollectionRadius,
+        PlayerEnvironmentGravity,
+        GlassSurfaceFlawMinimumSpacing,
+        GlassCrackMaximumSize,
+        GlassFractureResistance,
         Count
     }
 
@@ -69,27 +77,48 @@ namespace GlassShooter.Gameplay
     {
         public static readonly GrowthStatDefinition[] Definitions =
         {
-            new(GrowthStatId.PlayerMoveSpeed, "PLAYER", "Move speed", 4f, 0.5f, 20, 2),
-            new(GrowthStatId.PlayerFireInterval, "PLAYER", "Fire interval", 0.16f, -0.01f, 10, 3),
-            new(GrowthStatId.BulletMass, "BULLET", "Mass", 1f, 0.1f, 30, 2),
-            new(GrowthStatId.BulletSpeed, "BULLET", "Speed", 12f, 1f, 20, 2),
-            new(GrowthStatId.BulletFireRate, "BULLET", "Fire rate", 6.25f, 0.5f, 20, 3),
-            new(GrowthStatId.BulletShotCount, "BULLET", "Simultaneous shots", 1f, 1f, 7, 10, true),
-            new(GrowthStatId.BulletCrackEfficiency, "BULLET", "Crack efficiency", 0.5f, 0.05f, 10, 4),
-            new(GrowthStatId.BulletContactSize, "BULLET", "Contact size multiplier", 0.904382f, -0.01f, 15, 4),
-            new(GrowthStatId.GlassThickness, "GLASS", "Thickness", 1f, 0.1f, 20, 2),
-            new(GrowthStatId.GlassDensity, "GLASS", "Density", 1f, 0.1f, 20, 2),
-            new(GrowthStatId.GlassMass, "GLASS", "Mass", 1f, 0.1f, 20, 2),
-            new(GrowthStatId.GlassGravity, "GLASS", "Gravity multiplier", 1f, 0.1f, 20, 2),
-            new(GrowthStatId.GlassElasticity, "GLASS", "Elasticity", 0.1f, 0.05f, 18, 2),
-            new(GrowthStatId.GlassInitialCracks, "GLASS", "Initial crack count", 0f, 1f, 20, 3, true),
-            new(GrowthStatId.GlassMinimumVulnerability, "GLASS", "Minimum vulnerability", 0f, 0.05f, 20, 3),
-            new(GrowthStatId.GlassMaximumVulnerability, "GLASS", "Maximum vulnerability", 1f, 0f, 0, 0),
-            new(GrowthStatId.GlassVirtualPoints, "GLASS", "Virtual point count", 32f, 2f, 32, 3, true),
-            new(GrowthStatId.GlassFixedStrength, "GLASS", "Fixed position strength", 1f, 0.1f, 20, 3),
-            new(GrowthStatId.GlassFragmentAttack, "GLASS", "Fragment attack multiplier", 1f, 0.1f, 20, 3),
-            new(GrowthStatId.GlassFragmentFallSpeed, "GLASS", "Fragment fall speed", 1f, 0.1f, 20, 3),
-            new(GrowthStatId.GlassMinimumBreakableArea, "GLASS", "Minimum breakable area", 0.04f, -0.002f, 15, 4)
+            new(GrowthStatId.PlayerMoveSpeed, "プレイヤー・ガラス強化", "移動速度強化", 4f, 0.5f, int.MaxValue, 500),
+            new(GrowthStatId.PlayerFireInterval, "プレイヤー", "発射間隔", 0.16f, -0.01f, 10, 3),
+            new(GrowthStatId.BulletMass, "弾幕・破砕弾強化", "質量強化", 0.03f, 0f, int.MaxValue, 2),
+            new(GrowthStatId.BulletSpeed, "弾幕・破砕弾強化", "初速強化", 3f, 0f, int.MaxValue, 1),
+            new(GrowthStatId.BulletFireRate, "弾幕・破砕弾強化", "発射レート強化", 1f, 0f, int.MaxValue, 5),
+            new(GrowthStatId.BulletShotCount, "弾幕・破砕弾強化", "同時発射数強化", 1f, 0f, int.MaxValue, 1000, true),
+            new(GrowthStatId.BulletCrackEfficiency, "弾幕・破砕弾強化", "クラック変換効率強化", 0.05f, 0f, int.MaxValue, 2),
+            new(GrowthStatId.BulletContactSize, "弾幕・破砕弾強化", "縮小率強化", 1f, 0f, int.MaxValue, 20),
+            new(GrowthStatId.GlassThickness, "ガラス", "厚さ", 1f, 0.1f, 20, 2),
+            new(GrowthStatId.GlassDensity, "ガラス", "密度", 1f, 0.1f, 20, 2),
+            new(GrowthStatId.GlassMass, "ガラス", "質量", 1f, 0.1f, 20, 2),
+            new(GrowthStatId.GlassGravity, "ガラス", "重力倍率", 1f, 0.1f, 20, 2),
+            new(GrowthStatId.GlassElasticity, "ガラス", "弾性", 0.1f, 0.05f, 18, 2),
+            new(GrowthStatId.GlassInitialCracks, "ガラス", "初期亀裂数", 0f, 1f, 20, 3, true),
+            new(GrowthStatId.GlassMinimumVulnerability, "ガラス", "最小脆弱度", 0f, 0.05f, 20, 3),
+            new(GrowthStatId.GlassMaximumVulnerability, "ガラス", "最大脆弱度", 1f, 0f, 0, 0),
+            new(GrowthStatId.GlassVirtualPoints, "ガラス", "仮想点数", 32f, 2f, 32, 3, true),
+            new(GrowthStatId.GlassFixedStrength, "ガラス", "固定位置強度", 1f, 0.1f, 20, 3),
+            new(GrowthStatId.GlassFragmentAttack, "ガラス", "破片攻撃倍率", 1f, 0.1f, 20, 3),
+            new(GrowthStatId.GlassFragmentFallSpeed, "ガラス", "破片落下速度", 1f, 0.1f, 20, 3),
+            new(GrowthStatId.GlassMinimumBreakableArea, "ガラス", "最小破壊可能面積", 0.04f, -0.002f, 15, 4),
+            new(GrowthStatId.PlayerMaximumDurability, "プレイヤー強化", "最大耐久力強化", 1f, 0f, 0, 0),
+            new(GrowthStatId.PlayerFractureToughness, "プレイヤー強化", "破壊靭性強化", 1f, 0f, 0, 0),
+            new(GrowthStatId.PlayerHitboxScale, "プレイヤー・ガラス強化", "当たり判定縮小", 0.2f, 0f, int.MaxValue, 50),
+            new(GrowthStatId.PlayerCollectionRadius, "プレイヤー強化", "自動回収範囲強化", 0f, 0f, 0, 0),
+            new(GrowthStatId.PlayerEnvironmentGravity, "プレイヤー強化", "環境・重力強化", 0.06f, 0.02f, 20, 3),
+            new(GrowthStatId.GlassSurfaceFlawMinimumSpacing, "ガラス強化", "表面傷間隔強化", 1.2f, -0.05f, 20, 3),
+            new(GrowthStatId.GlassCrackMaximumSize, "ガラス強化", "亀裂の最大の大きさ強化", 1.2f, 0.1f, 20, 3),
+            new(GrowthStatId.GlassFractureResistance, "ガラス強化", "亀裂抵抗値強化", 1f, -0.04f, 20, 4)
+        };
+
+        /// <summary>強化画面に表示するカテゴリと項目の順序です。</summary>
+        public static readonly GrowthStatDefinition[] DisplayDefinitions =
+        {
+            Definitions[(int)GrowthStatId.BulletMass],
+            Definitions[(int)GrowthStatId.BulletSpeed],
+            Definitions[(int)GrowthStatId.BulletCrackEfficiency],
+            Definitions[(int)GrowthStatId.BulletFireRate],
+            Definitions[(int)GrowthStatId.BulletShotCount],
+            Definitions[(int)GrowthStatId.BulletContactSize],
+            Definitions[(int)GrowthStatId.PlayerHitboxScale],
+            Definitions[(int)GrowthStatId.PlayerMoveSpeed]
         };
 
         [SerializeField] private int[] upgradeLevels = new int[(int)GrowthStatId.Count];
@@ -119,13 +148,26 @@ namespace GlassShooter.Gameplay
         public float GetValue(GrowthStatId id)
         {
             GrowthStatDefinition definition = Definitions[(int)id];
-            return definition.BaseValue + definition.Step * GetLevel(id);
+            int level = GetLevel(id);
+            return id switch
+            {
+                GrowthStatId.BulletMass => 0.03f + 0.01f * level,
+                GrowthStatId.BulletSpeed => 3f + 0.2f * Mathf.Sqrt(level),
+                GrowthStatId.BulletCrackEfficiency => 0.05f + 0.01f * Mathf.Sqrt(level),
+                GrowthStatId.BulletFireRate => 1f + Mathf.Sqrt(0.2f * level),
+                GrowthStatId.BulletShotCount => 1f + level,
+                GrowthStatId.BulletContactSize => 1f - 0.001f * level,
+                GrowthStatId.PlayerHitboxScale => Mathf.Pow(0.2f, Mathf.Max(level / 1000f, 1f)),
+                GrowthStatId.PlayerMoveSpeed => 4f + 0.5f * level,
+                _ => definition.BaseValue + definition.Step * level
+            };
         }
 
         public int GetUpgradeCost(GrowthStatId id)
         {
             GrowthStatDefinition definition = Definitions[(int)id];
-            return definition.BaseCost * (GetLevel(id) + 1);
+            long cost = (long)definition.BaseCost * (GetLevel(id) + 1L);
+            return (int)Math.Min(cost, int.MaxValue);
         }
 
         public bool CanUpgrade(GrowthStatId id)
@@ -169,10 +211,6 @@ namespace GlassShooter.Gameplay
                 {
                     ApplyTo(bullet);
                 }
-                foreach (GlassStatus glass in roots[i].GetComponentsInChildren<GlassStatus>(true))
-                {
-                    ApplyTo(glass);
-                }
                 foreach (PlayerShooterController player in roots[i].GetComponentsInChildren<PlayerShooterController>(true))
                 {
                     ApplyTo(player);
@@ -191,29 +229,13 @@ namespace GlassShooter.Gameplay
                 GetValue(GrowthStatId.BulletContactSize));
         }
 
-        private void ApplyTo(GlassStatus target)
-        {
-            target.ApplyGrowthStatus(
-                GetValue(GrowthStatId.GlassThickness),
-                GetValue(GrowthStatId.GlassDensity),
-                GetValue(GrowthStatId.GlassMass),
-                GetValue(GrowthStatId.GlassGravity),
-                GetValue(GrowthStatId.GlassElasticity),
-                Mathf.RoundToInt(GetValue(GrowthStatId.GlassInitialCracks)),
-                GetValue(GrowthStatId.GlassMinimumVulnerability),
-                GetValue(GrowthStatId.GlassMaximumVulnerability),
-                Mathf.RoundToInt(GetValue(GrowthStatId.GlassVirtualPoints)),
-                GetValue(GrowthStatId.GlassFixedStrength),
-                GetValue(GrowthStatId.GlassFragmentAttack),
-                GetValue(GrowthStatId.GlassFragmentFallSpeed),
-                GetValue(GrowthStatId.GlassMinimumBreakableArea));
-        }
-
         private void ApplyTo(PlayerShooterController target)
         {
+            float fireRate = GetValue(GrowthStatId.BulletFireRate);
             target.ApplyGrowthStatus(
                 GetValue(GrowthStatId.PlayerMoveSpeed),
-                GetValue(GrowthStatId.PlayerFireInterval));
+                fireRate > 0f ? 1f / fireRate : GetValue(GrowthStatId.PlayerFireInterval),
+                GetValue(GrowthStatId.PlayerHitboxScale));
         }
 
         private void Awake()

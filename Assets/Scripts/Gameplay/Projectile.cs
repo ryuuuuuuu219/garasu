@@ -15,6 +15,7 @@ namespace GlassShooter.Gameplay
         public float DestroyY => destroyY;
 
         private Rigidbody2D projectileRigidbody;
+        private bool consumed;
 
         private void Awake()
         {
@@ -44,6 +45,87 @@ namespace GlassShooter.Gameplay
             {
                 Destroy(gameObject);
             }
+        }
+
+        private void OnTriggerEnter2D(Collider2D other)
+        {
+            if (!TryConsume(
+                    other,
+                    out CrackProcessingComponent crackTarget,
+                    out GlassFragment fragmentTarget,
+                    out BulletStatus bulletStatus))
+            {
+                return;
+            }
+
+            if (crackTarget != null)
+            {
+                crackTarget.HandleProjectileImpact(transform.position, bulletStatus);
+            }
+            else
+            {
+                fragmentTarget.ConsumeBullet(bulletStatus);
+            }
+            Destroy(gameObject);
+        }
+
+        private void OnCollisionEnter2D(Collision2D collision)
+        {
+            if (!TryConsume(
+                    collision.collider,
+                    out CrackProcessingComponent crackTarget,
+                    out GlassFragment fragmentTarget,
+                    out BulletStatus bulletStatus))
+            {
+                return;
+            }
+
+            if (crackTarget != null)
+            {
+                Vector2 impactWorldPosition = collision.contactCount > 0
+                    ? collision.GetContact(0).point
+                    : (Vector2)transform.position;
+                crackTarget.HandleBulletImpact(impactWorldPosition, bulletStatus);
+            }
+            else
+            {
+                fragmentTarget.ConsumeBullet(bulletStatus);
+            }
+            Destroy(gameObject);
+        }
+
+        private bool TryConsume(
+            Collider2D other,
+            out CrackProcessingComponent crackTarget,
+            out GlassFragment fragmentTarget,
+            out BulletStatus bulletStatus)
+        {
+            crackTarget = null;
+            fragmentTarget = null;
+            bulletStatus = null;
+            if (consumed || other == null)
+            {
+                return false;
+            }
+
+            crackTarget = other.GetComponentInParent<CrackProcessingComponent>();
+            if (crackTarget == null)
+            {
+                fragmentTarget = other.GetComponentInParent<GlassFragment>();
+            }
+            if ((crackTarget == null && fragmentTarget == null) ||
+                !TryGetComponent(out bulletStatus))
+            {
+                return false;
+            }
+
+            // Destroyはフレーム終端まで遅延するため、対象処理より先に再入を禁止する。
+            consumed = true;
+            foreach (Collider2D projectileCollider in GetComponentsInChildren<Collider2D>())
+            {
+                projectileCollider.enabled = false;
+            }
+            return true;
         }
     }
 }

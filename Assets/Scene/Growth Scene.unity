@@ -163,6 +163,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ca333333333333333333333333333333, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GlassShooter.Gameplay.GrowthSceneController
+  font: {fileID: 11400000, guid: dd6aad516e1d75f4d9398e16061a4f37, type: 2}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

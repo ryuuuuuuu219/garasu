@@ -1,4 +1,4 @@
-using PolygonRendering.Input;
+﻿using PolygonRendering.Input;
 using UnityEngine;
 
 namespace GlassShooter.Gameplay
@@ -25,6 +25,8 @@ namespace GlassShooter.Gameplay
         private KeyboardInputState inputState;
         private float nextFireTime;
         private LineRenderer lr;
+        private PolygonCollider2D hitbox;
+        private Vector2[][] baseHitboxPaths;
 
         public Vector2 MoveLimitMin => Movelimitmin;
         public Vector2 MoveLimitMax => Movelimitmax;
@@ -34,15 +36,17 @@ namespace GlassShooter.Gameplay
         public float FireInterval => fireInterval;
 
         /// <summary>成長画面で確定したプレイヤーステータスを反映します。</summary>
-        public void ApplyGrowthStatus(float newMoveSpeed, float newFireInterval)
+        public void ApplyGrowthStatus(float newMoveSpeed, float newFireInterval, float hitboxScale)
         {
             moveSpeed = Mathf.Max(0f, newMoveSpeed);
             fireInterval = Mathf.Max(0.01f, newFireInterval);
+            ApplyHitboxScale(hitboxScale);
         }
 
         private void Awake()
         {
             inputState = GetComponent<KeyboardInputState>();
+            CacheHitbox();
 
             GameObject child = new GameObject("LineRenderer");
             child.transform.SetParent(transform);
@@ -61,6 +65,32 @@ namespace GlassShooter.Gameplay
             if (inputState.SpaceDown && Time.time >= nextFireTime)
             {
                 Fire();
+            }
+
+            Debug_impactFromMouse();
+
+        }
+
+        void Debug_impactFromMouse()
+        {
+            if (Input.GetMouseButtonDown(0))
+            {
+                Vector3 mousePosition = Input.mousePosition;
+                mousePosition.z = 0f; // Set the z-coordinate to 0 for 2D
+                Vector3 worldPosition = Camera.main.ScreenToWorldPoint(mousePosition);
+                worldPosition.z = 0f; // Set the z-coordinate to 0 for 2D
+                if (projectilePrefab == null || bulletStatus == null)
+                {
+                    return;
+                }
+                Projectile projectile = Instantiate(
+                    projectilePrefab,
+                    worldPosition,
+                    Quaternion.identity);
+                BulletStatus copy = projectile.TryGetComponent(out BulletStatus existingStatus)
+                    ? existingStatus
+                    : projectile.gameObject.AddComponent<BulletStatus>();
+                copy.CopyFrom(bulletStatus);
             }
         }
 
@@ -86,6 +116,44 @@ namespace GlassShooter.Gameplay
             lr.useWorldSpace = true;
         }
 
+        private void CacheHitbox()
+        {
+            hitbox = GetComponent<PolygonCollider2D>();
+            if (hitbox == null)
+            {
+                return;
+            }
+
+            baseHitboxPaths = new Vector2[hitbox.pathCount][];
+            for (int pathIndex = 0; pathIndex < hitbox.pathCount; pathIndex++)
+            {
+                baseHitboxPaths[pathIndex] = hitbox.GetPath(pathIndex);
+            }
+        }
+
+        private void ApplyHitboxScale(float scale)
+        {
+            if (hitbox == null || baseHitboxPaths == null)
+            {
+                CacheHitbox();
+            }
+            if (hitbox == null || baseHitboxPaths == null)
+            {
+                return;
+            }
+
+            float safeScale = Mathf.Max(0.0001f, scale);
+            for (int pathIndex = 0; pathIndex < baseHitboxPaths.Length; pathIndex++)
+            {
+                Vector2[] scaledPath = new Vector2[baseHitboxPaths[pathIndex].Length];
+                for (int pointIndex = 0; pointIndex < scaledPath.Length; pointIndex++)
+                {
+                    scaledPath[pointIndex] = baseHitboxPaths[pathIndex][pointIndex] * safeScale;
+                }
+                hitbox.SetPath(pathIndex, scaledPath);
+            }
+        }
+
         private void Fire()
         {
             if (projectilePrefab == null || bulletStatus == null)
@@ -96,6 +164,17 @@ namespace GlassShooter.Gameplay
             Vector3 spawnPosition = firePoint != null
                 ? firePoint.position
                 : transform.position;
+            int shotCount = Mathf.Max(1, bulletStatus.SimultaneousShotCount);
+            for (int shotIndex = 0; shotIndex < shotCount; shotIndex++)
+            {
+                SpawnProjectile(spawnPosition);
+            }
+
+            nextFireTime = Time.time + fireInterval;
+        }
+
+        private void SpawnProjectile(Vector3 spawnPosition)
+        {
             Projectile projectile = Instantiate(
                 projectilePrefab,
                 spawnPosition,
@@ -104,8 +183,6 @@ namespace GlassShooter.Gameplay
                 ? existingStatus
                 : projectile.gameObject.AddComponent<BulletStatus>();
             copy.CopyFrom(bulletStatus);
-
-            nextFireTime = Time.time + fireInterval;
         }
     }
 }

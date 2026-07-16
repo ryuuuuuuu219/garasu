@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
@@ -14,16 +15,17 @@ namespace GlassShooter.Gameplay
 
         private sealed class RowView
         {
-            public Text value;
-            public Text buttonLabel;
+            public TMP_Text value;
+            public TMP_Text buttonLabel;
             public Button button;
         }
+
+        [SerializeField] private TMP_FontAsset font;
 
         private readonly Dictionary<GrowthStatId, RowView> rows = new();
         private ResourceComponent resource;
         private GrowthStatusComponent growth;
-        private Text resourceText;
-        private Font font;
+        private TMP_Text resourceText;
 
         private void Start()
         {
@@ -51,12 +53,10 @@ namespace GlassShooter.Gameplay
 
         private void BuildInterface()
         {
-            font = Font.CreateDynamicFontFromOSFont(
-                new[] { "Yu Gothic UI", "Meiryo UI", "Arial" },
-                20);
             if (font == null)
             {
-                font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                font = TMP_Settings.defaultFontAsset;
+                Debug.LogWarning("成長画面の日本語フォントが未設定です。TextMeshProの既定フォントを使用します。", this);
             }
 
             GameObject canvasObject = CreateObject("GrowthCanvas", transform);
@@ -78,13 +78,13 @@ namespace GlassShooter.Gameplay
             header.offsetMin = new Vector2(0f, -140f);
             header.offsetMax = Vector2.zero;
 
-            Text title = CreateText("Title", header, "GROWTH", 38, FontStyle.Bold, TextAnchor.MiddleLeft);
+            TMP_Text title = CreateText("Title", header, "成長", 38, FontStyles.Bold, TextAlignmentOptions.MidlineLeft);
             SetRect(title.rectTransform, new Vector2(0f, 0f), new Vector2(0.5f, 1f), new Vector2(34f, 0f), new Vector2(-10f, 0f));
 
-            resourceText = CreateText("Resource", header, string.Empty, 25, FontStyle.Bold, TextAnchor.MiddleRight);
+            resourceText = CreateText("Resource", header, string.Empty, 25, FontStyles.Bold, TextAlignmentOptions.MidlineRight);
             SetRect(resourceText.rectTransform, new Vector2(0.48f, 0f), new Vector2(0.76f, 1f), Vector2.zero, new Vector2(-18f, 0f));
 
-            Button runButton = CreateButton("RunButton", header, "Run", new Color(0.15f, 0.62f, 0.42f, 1f));
+            Button runButton = CreateButton("RunButton", header, "ゲーム開始", new Color(0.15f, 0.62f, 0.42f, 1f));
             SetRect(runButton.GetComponent<RectTransform>(), new Vector2(0.77f, 0.18f), new Vector2(0.97f, 0.82f), Vector2.zero, Vector2.zero);
             runButton.onClick.AddListener(RunGame);
 
@@ -123,7 +123,7 @@ namespace GlassShooter.Gameplay
             scroll.content = content;
 
             string currentGroup = null;
-            foreach (GrowthStatDefinition definition in GrowthStatusComponent.Definitions)
+            foreach (GrowthStatDefinition definition in GrowthStatusComponent.DisplayDefinitions)
             {
                 if (definition.Group != currentGroup)
                 {
@@ -136,7 +136,7 @@ namespace GlassShooter.Gameplay
 
         private void CreateGroupHeader(Transform parent, string label)
         {
-            Text header = CreateText(label + "Header", parent, label, 25, FontStyle.Bold, TextAnchor.MiddleLeft);
+            TMP_Text header = CreateText(label + "Header", parent, label, 25, FontStyles.Bold, TextAlignmentOptions.MidlineLeft);
             header.color = new Color(0.4f, 0.82f, 1f, 1f);
             LayoutElement element = header.gameObject.AddComponent<LayoutElement>();
             element.preferredHeight = 52f;
@@ -148,15 +148,15 @@ namespace GlassShooter.Gameplay
             LayoutElement element = row.gameObject.AddComponent<LayoutElement>();
             element.preferredHeight = 78f;
 
-            Text label = CreateText("Label", row.transform, definition.Label, 21, FontStyle.Normal, TextAnchor.MiddleLeft);
+            TMP_Text label = CreateText("Label", row.transform, definition.Label, 21, FontStyles.Normal, TextAlignmentOptions.MidlineLeft);
             SetRect(label.rectTransform, Vector2.zero, new Vector2(0.48f, 1f), new Vector2(22f, 0f), Vector2.zero);
 
-            Text value = CreateText("Value", row.transform, string.Empty, 21, FontStyle.Bold, TextAnchor.MiddleCenter);
+            TMP_Text value = CreateText("Value", row.transform, string.Empty, 21, FontStyles.Bold, TextAlignmentOptions.Center);
             SetRect(value.rectTransform, new Vector2(0.47f, 0f), new Vector2(0.72f, 1f), Vector2.zero, Vector2.zero);
 
             Button button = CreateButton("Upgrade", row.transform, string.Empty, new Color(0.16f, 0.4f, 0.72f, 1f));
             SetRect(button.GetComponent<RectTransform>(), new Vector2(0.74f, 0.14f), new Vector2(0.98f, 0.86f), Vector2.zero, Vector2.zero);
-            Text buttonLabel = button.GetComponentInChildren<Text>();
+            TMP_Text buttonLabel = button.GetComponentInChildren<TMP_Text>();
             GrowthStatId capturedId = definition.Id;
             button.onClick.AddListener(() => growth.TryUpgrade(capturedId));
 
@@ -175,17 +175,17 @@ namespace GlassShooter.Gameplay
                 return;
             }
 
-            resourceText.text = $"Resource  {resource.Resource}";
-            foreach (GrowthStatDefinition definition in GrowthStatusComponent.Definitions)
+            resourceText.text = $"資源  {resource.Resource}";
+            foreach (GrowthStatDefinition definition in GrowthStatusComponent.DisplayDefinitions)
             {
                 RowView row = rows[definition.Id];
                 int level = growth.GetLevel(definition.Id);
-                row.value.text = $"{growth.FormatValue(definition.Id)}   Lv.{level}";
+                row.value.text = $"{growth.FormatValue(definition.Id)}   レベル {level}";
                 bool canUpgrade = growth.CanUpgrade(definition.Id);
                 row.button.interactable = canUpgrade && resource.Resource >= growth.GetUpgradeCost(definition.Id);
                 row.buttonLabel.text = canUpgrade
-                    ? $"UP  {growth.GetUpgradeCost(definition.Id)}"
-                    : "MAX";
+                    ? $"強化  {growth.GetUpgradeCost(definition.Id)}"
+                    : definition.BaseCost == 0 ? "準備中" : "最大";
             }
         }
 
@@ -231,23 +231,23 @@ namespace GlassShooter.Gameplay
             return image;
         }
 
-        private Text CreateText(
+        private TMP_Text CreateText(
             string objectName,
             Transform parent,
             string content,
             int size,
-            FontStyle style,
-            TextAnchor alignment)
+            FontStyles style,
+            TextAlignmentOptions alignment)
         {
             GameObject result = CreateObject(objectName, parent);
-            Text text = result.AddComponent<Text>();
+            TextMeshProUGUI text = result.AddComponent<TextMeshProUGUI>();
             text.font = font;
             text.text = content;
             text.fontSize = size;
             text.fontStyle = style;
             text.alignment = alignment;
             text.color = new Color(0.92f, 0.95f, 1f, 1f);
-            text.supportRichText = false;
+            text.richText = false;
             return text;
         }
 
@@ -261,7 +261,7 @@ namespace GlassShooter.Gameplay
             colors.pressedColor = color * 0.8f;
             colors.disabledColor = new Color(0.16f, 0.17f, 0.2f, 1f);
             button.colors = colors;
-            Text text = CreateText("Text", button.transform, label, 22, FontStyle.Bold, TextAnchor.MiddleCenter);
+            TMP_Text text = CreateText("Text", button.transform, label, 22, FontStyles.Bold, TextAlignmentOptions.Center);
             Stretch(text.rectTransform);
             return button;
         }

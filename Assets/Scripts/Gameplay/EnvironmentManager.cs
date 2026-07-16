@@ -36,12 +36,13 @@ namespace GlassShooter.Gameplay
         {
             if (Instance != null && Instance != this)
             {
-                Destroy(gameObject);
+                // EnvironmentManagerがBulletStatusやGlassStatusと同居していても、
+                // 重複時に全般マネージャー本体や他コンポーネントを巻き込まない。
+                Destroy(this);
                 return;
             }
 
             Instance = this;
-            DontDestroyOnLoad(gameObject);
             CacheScaleRoot();
             ApplyEnvironment();
         }

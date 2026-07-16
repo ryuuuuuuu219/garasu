@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using PolygonRendering;
 using UnityEngine;
@@ -41,6 +41,7 @@ namespace GlassShooter.Gameplay
         private System.Random crackRandom;
         private bool crackGraphInitialized;
         private bool isReleasedFromAnchor;
+        private bool isSeparating;
 
         // 選択中オブジェクトのGizmo表示にだけ使用する直近着弾の診断情報。
         private readonly List<DebugLine> debugPrimaryCandidates = new List<DebugLine>();
@@ -319,57 +320,27 @@ namespace GlassShooter.Gameplay
             }
         }
 
-        private void OnCollisionEnter2D(Collision2D collision)
+        public void HandleProjectileImpact(Vector2 projectileWorldPosition, BulletStatus bulletStatus)
         {
-            BulletStatus bulletStatus = collision.collider.GetComponentInParent<BulletStatus>();
-            if (bulletStatus == null)
-            {
-                return;
-            }
-
-            Vector2 impactWorldPosition = collision.contactCount > 0
-                ? collision.GetContact(0).point
-                : (Vector2)collision.transform.position;
-
-            CompleteBulletImpact(impactWorldPosition, bulletStatus);
-        }
-
-        private void OnTriggerEnter2D(Collider2D other)
-        {
-            BulletStatus bulletStatus = other.GetComponentInParent<BulletStatus>();
-            if (bulletStatus == null)
-            {
-                return;
-            }
-
+            EnsureGeometryInitialized();
             // Triggerには接触点情報がないため、弾中心をガラス外周へ投影して代表接触点にする。
-            Vector2 projectileLocalPosition = transform.InverseTransformPoint(other.transform.position);
+            Vector2 projectileLocalPosition = transform.InverseTransformPoint(projectileWorldPosition);
             Vector2 impactLocalPosition = GetClosestPointOnOutline(projectileLocalPosition);
             Vector2 impactWorldPosition = transform.TransformPoint(impactLocalPosition);
-            CompleteBulletImpact(impactWorldPosition, bulletStatus);
-        }
-
-        private void CompleteBulletImpact(Vector2 impactWorldPosition, BulletStatus bulletStatus)
-        {
             HandleBulletImpact(impactWorldPosition, bulletStatus);
-            Destroy(bulletStatus.gameObject);
         }
 
+        private float pooledImpactEnergy;
         public void HandleBulletImpact(Vector2 impactWorldPosition, BulletStatus bulletStatus)
         {
+            if (isSeparating)
+            {
+                return;
+            }
+
             if (bulletStatus == null)
             {
                 Debug.LogWarning("Bullet impact was ignored because BulletStatus was null.", this);
-                return;
-            }
-
-            // ボス本体は蓄積破砕を前提とするため、着弾で縮小させない。
-            // 分離後の通常破片にはBossGlassComponentを継承しないので、
-            // 追撃分だけ最終回収面積が減る。
-            bool preventsImpactShrink = TryGetComponent(out BossGlassComponent _);
-            if (!preventsImpactShrink &&
-                !ApplySizeMultiplier(bulletStatus.ContactSizeMultiplier))
-            {
                 return;
             }
 
@@ -383,13 +354,18 @@ namespace GlassShooter.Gameplay
                 return;
             }
 
+            Debug.Log("1");
+
             EnsureCrackGraphInitialized();
             CrackNode surfaceFlaw = FindOrCreateSurfaceFlaw(impactLocalPosition);
-            CrackNode startNode = FindNearestCrackNodeOrFallback(surfaceFlaw);
+            CrackNode startNode = FindCrackTipFromSurfaceRootOrFallback(
+                surfaceFlaw,
+                impactLocalPosition);
             Vector2 referenceDirection = ResolveReferenceDirection(startNode, bulletStatus.CurrentVelocity);
 
             float impactEnergy = bulletStatus.CalculateKineticEnergy()
                 * bulletStatus.CrackConversionEfficiency;
+            impactEnergy += pooledImpactEnergy;
             float scanRadius = CalculateScanRadius(impactEnergy);
 
             ResetImpactDebugData(impactLocalPosition, scanRadius);
@@ -399,12 +375,27 @@ namespace GlassShooter.Gameplay
                 scanRadius,
                 impactEnergy);
 
-            ApplyCrackPathsWithinBudget(paths, impactEnergy);
+            // 実際にクラック形成へ使われなかった分だけを、ガラス全体で次回へ持ち越す。
+            // 候補がない場合や全候補が予算超過の場合は、全量がそのまま残る。
+            pooledImpactEnergy = ApplyCrackPathsWithinBudget(paths, impactEnergy);
             cracks = BuildRenderableCrackPaths();
+
+            // ボス本体は蓄積破砕を前提とするため、着弾で縮小させない。
+            // 分離後の通常破片にはBossGlassComponentを継承しないので、
+            // 追撃分だけ最終回収面積が減る。
+            bool preventsImpactShrink = TryGetComponent(out BossGlassComponent _);
+            if (!preventsImpactShrink &&
+                !ApplySizeMultiplier(bulletStatus.ContactSizeMultiplier))
+            {
+                return;
+            }
+
             RenderCracks();
 
             // 外周同士を結ぶ連続クラックが完成した場合だけ既存の破片分離へ渡す。
             TrySeparateCompletedPath();
+
+            Debug.Log("2");
         }
 
         private bool ApplySizeMultiplier(float multiplier)
@@ -655,37 +646,83 @@ namespace GlassShooter.Gameplay
             return GetOrCreateNode(impactLocalPosition, 1f, true);
         }
 
-        private CrackNode FindNearestCrackNodeOrFallback(CrackNode fallback)
+        private CrackNode FindCrackTipFromSurfaceRootOrFallback(
+            CrackNode surfaceRoot,
+            Vector2 impactLocalPosition)
         {
-            CrackNode nearestNode = null;
-            float nearestDistance = crackTipDetectionRadius;
-            var visitedNodeIds = new HashSet<int>();
+            if (surfaceRoot == null ||
+                !surfaceRoot.isSurfaceFlaw ||
+                Vector2.Distance(surfaceRoot.localPosition, impactLocalPosition) > crackTipDetectionRadius)
+            {
+                return surfaceRoot;
+            }
+
+            var connectionCountByNodeId = new int[crackNodes.Count];
+            var connectedNodeIds = new HashSet<int> { surfaceRoot.id };
+            var nodesToVisit = new Queue<int>();
+            nodesToVisit.Enqueue(surfaceRoot.id);
             for (int i = 0; i < crackConnections.Count; i++)
             {
-                ConsiderNode(crackConnections[i].nodeAId);
-                ConsiderNode(crackConnections[i].nodeBId);
+                CrackConnection connection = crackConnections[i];
+                if (connection.nodeAId >= 0 && connection.nodeAId < connectionCountByNodeId.Length)
+                {
+                    connectionCountByNodeId[connection.nodeAId]++;
+                }
+                if (connection.nodeBId >= 0 && connection.nodeBId < connectionCountByNodeId.Length)
+                {
+                    connectionCountByNodeId[connection.nodeBId]++;
+                }
             }
-            return nearestNode ?? fallback;
 
-            void ConsiderNode(int nodeId)
+            if (surfaceRoot.id < 0 ||
+                surfaceRoot.id >= connectionCountByNodeId.Length ||
+                connectionCountByNodeId[surfaceRoot.id] == 0)
             {
-                if (!visitedNodeIds.Add(nodeId))
-                {
-                    return;
-                }
+                return surfaceRoot;
+            }
 
-                CrackNode node = GetNode(nodeId);
-                if (node == null)
+            // 同じクラックかどうかは内部先端との距離ではなく、外周上の根本との
+            // 距離だけで決める。その後、根本につながる成分内の先端を成長させる。
+            while (nodesToVisit.Count > 0)
+            {
+                int currentNodeId = nodesToVisit.Dequeue();
+                for (int i = 0; i < crackConnections.Count; i++)
                 {
-                    return;
-                }
-                float distance = Vector2.Distance(node.localPosition, fallback.localPosition);
-                if (distance <= nearestDistance)
-                {
-                    nearestDistance = distance;
-                    nearestNode = node;
+                    CrackConnection connection = crackConnections[i];
+                    int nextNodeId = connection.nodeAId == currentNodeId
+                        ? connection.nodeBId
+                        : connection.nodeBId == currentNodeId
+                            ? connection.nodeAId
+                            : -1;
+                    if (nextNodeId >= 0 && connectedNodeIds.Add(nextNodeId))
+                    {
+                        nodesToVisit.Enqueue(nextNodeId);
+                    }
                 }
             }
+
+            CrackNode farthestInternalTip = null;
+            float farthestDistanceSquared = float.NegativeInfinity;
+            foreach (int nodeId in connectedNodeIds)
+            {
+                if (nodeId == surfaceRoot.id || connectionCountByNodeId[nodeId] != 1)
+                {
+                    continue;
+                }
+                CrackNode node = GetNode(nodeId);
+                if (node == null || node.isSurfaceFlaw)
+                {
+                    continue;
+                }
+                float distanceSquared = (node.localPosition - surfaceRoot.localPosition).sqrMagnitude;
+                if (distanceSquared > farthestDistanceSquared)
+                {
+                    farthestDistanceSquared = distanceSquared;
+                    farthestInternalTip = node;
+                }
+            }
+
+            return farthestInternalTip ?? surfaceRoot;
         }
 
         private Vector2 ResolveReferenceDirection(CrackNode startNode, Vector2 bulletVelocity)
@@ -1381,7 +1418,9 @@ namespace GlassShooter.Gameplay
             return (lhs - rhs).sqrMagnitude <= GeometryEpsilon * GeometryEpsilon;
         }
 
-        private void ApplyCrackPathsWithinBudget(List<CrackPathCandidate> paths, float impactEnergy)
+        private float ApplyCrackPathsWithinBudget(
+            List<CrackPathCandidate> paths,
+            float impactEnergy)
         {
             paths.Sort((a, b) => a.totalFractureCost.CompareTo(b.totalFractureCost));
             float remainingEnergy = Mathf.Max(0f, impactEnergy);
@@ -1403,6 +1442,8 @@ namespace GlassShooter.Gameplay
                 CreateMissingConnections(path);
                 remainingEnergy = Mathf.Max(0f, remainingEnergy - additionalCost);
             }
+
+            return remainingEnergy;
         }
 
         private bool CanApplyPathWithoutNewIntersection(CrackPathCandidate path)
@@ -1818,11 +1859,23 @@ namespace GlassShooter.Gameplay
         /// </summary>
         public bool TrySeparateAlongCrack(Vector2[] crack)
         {
+            if (isSeparating)
+            {
+                return false;
+            }
+
             EnsureGeometryInitialized();
             if (!TrySplitPolygon(outline, crack, out Vector2[] firstRegion, out Vector2[] secondRegion) ||
                 !IsSafeSplitByArea(firstRegion, secondRegion))
             {
                 return false;
+            }
+
+            // Destroyまでの同一フレーム中に再び分離されないよう、生成前に再入を止める。
+            isSeparating = true;
+            if (TryGetComponent(out Collider2D sourceCollider))
+            {
+                sourceCollider.enabled = false;
             }
 
             float firstArea = Mathf.Abs(SignedArea(firstRegion));
@@ -2400,19 +2453,9 @@ namespace GlassShooter.Gameplay
     {
         [SerializeField] private float destroyBelowY = -8f;
 
-        private void OnTriggerEnter2D(Collider2D other)
+        public void ConsumeBullet(BulletStatus bulletStatus)
         {
-            ConsumeBullet(other.GetComponentInParent<BulletStatus>());
-        }
-
-        private void OnCollisionEnter2D(Collision2D collision)
-        {
-            ConsumeBullet(collision.collider.GetComponentInParent<BulletStatus>());
-        }
-
-        private void ConsumeBullet(BulletStatus bulletStatus)
-        {
-            if (bulletStatus == null || TryGetComponent(out CrackProcessingComponent _))
+            if (bulletStatus == null)
             {
                 return;
             }
@@ -2422,7 +2465,6 @@ namespace GlassShooter.Gameplay
             {
                 Destroy(gameObject);
             }
-            Destroy(bulletStatus.gameObject);
         }
 
         private void FixedUpdate()
