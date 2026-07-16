@@ -10,14 +10,11 @@ namespace GlassShooter.Gameplay
     {
         [Header("Ballistics")]
         [SerializeField, Min(0f)] private float mass = 1f;
-        [SerializeField, Min(0f)] private float initialSpeed = 12f;
         [SerializeField] private Vector2 currentVelocity = new Vector2(0f, 12f);
         [SerializeField, Min(0f)] private float fireRate = 6.25f;
         [SerializeField, Min(1)] private int simultaneousShotCount = 1;
 
         [Header("Fracture")]
-        [SerializeField, Min(0.0001f)] private float tipCrossSectionArea = 0.05f;
-        [SerializeField, Min(0.0001f)] private float stoppingDistance = 0.1f;
         [SerializeField, Range(0f, 1f)] private float crackConversionEfficiency = 0.5f;
 
         [Header("Erosion")]
@@ -25,12 +22,9 @@ namespace GlassShooter.Gameplay
         private float contactSizeMultiplier = 0.904382f;
 
         public float Mass => mass;
-        public float InitialSpeed => initialSpeed;
         public Vector2 CurrentVelocity => currentVelocity;
         public float FireRate => fireRate;
         public int SimultaneousShotCount => simultaneousShotCount;
-        public float TipCrossSectionArea => tipCrossSectionArea;
-        public float StoppingDistance => stoppingDistance;
         public float CrackConversionEfficiency => crackConversionEfficiency;
 
         /// <summary>
@@ -39,15 +33,32 @@ namespace GlassShooter.Gameplay
         /// </summary>
         public float ContactSizeMultiplier => contactSizeMultiplier;
 
+        /// <summary>成長画面で確定した弾ステータスを反映します。</summary>
+        public void ApplyGrowthStatus(
+            float newMass,
+            float speed,
+            float newFireRate,
+            int newSimultaneousShotCount,
+            float newCrackConversionEfficiency,
+            float newContactSizeMultiplier)
+        {
+            mass = Mathf.Max(0f, newMass);
+            Vector2 direction = currentVelocity.sqrMagnitude > 0.000001f
+                ? currentVelocity.normalized
+                : Vector2.up;
+            currentVelocity = direction * Mathf.Max(0f, speed);
+            fireRate = Mathf.Max(0f, newFireRate);
+            simultaneousShotCount = Mathf.Max(1, newSimultaneousShotCount);
+            crackConversionEfficiency = Mathf.Clamp01(newCrackConversionEfficiency);
+            contactSizeMultiplier = Mathf.Clamp01(newContactSizeMultiplier);
+        }
+
         public void CopyFrom(BulletStatus original)
         {
             mass = original.Mass;
-            initialSpeed = original.InitialSpeed;
             currentVelocity = original.CurrentVelocity;
             fireRate = original.FireRate;
             simultaneousShotCount = original.SimultaneousShotCount;
-            tipCrossSectionArea = original.TipCrossSectionArea;
-            stoppingDistance = original.StoppingDistance;
             crackConversionEfficiency = original.CrackConversionEfficiency;
             contactSizeMultiplier = original.ContactSizeMultiplier;
         }
@@ -67,11 +78,8 @@ namespace GlassShooter.Gameplay
         private void OnValidate()
         {
             mass = Mathf.Max(0f, mass);
-            initialSpeed = Mathf.Max(0f, initialSpeed);
             fireRate = Mathf.Max(0f, fireRate);
             simultaneousShotCount = Mathf.Max(1, simultaneousShotCount);
-            tipCrossSectionArea = Mathf.Max(0.0001f, tipCrossSectionArea);
-            stoppingDistance = Mathf.Max(0.0001f, stoppingDistance);
             contactSizeMultiplier = Mathf.Clamp01(contactSizeMultiplier);
         }
     }

@@ -1,0 +1,106 @@
+# ガラス×シューティングゲーム クラック形成係数一覧
+
+更新日: 2026-07-16
+
+## 現在の実効係数
+
+### BulletStatus
+
+・mass = 1
+・currentVelocity = 実速度約12
+・crackConversionEfficiency = 0.5
+・contactSizeMultiplier = 0.904382
+
+弾の有効衝撃エネルギー:
+
+impactEnergy
+= 0.5
+  × mass
+  × currentVelocity^2
+  × crackConversionEfficiency
+
+現在値ではimpactEnergy = 36。
+
+contactSizeMultiplierはクラック計算前の縮小へ使用する。
+線形寸法は約0.9044倍、面積は約0.8179倍になる。
+
+### CrackProcessingComponent
+
+・crackRandomSeed = 12345
+・surfaceFlawMinimumSpacing = 1.2
+・crackTipDetectionRadius = 1.2
+・baseFractureResistance = 1
+・minimumScanRadius = 0.1
+・maximumScanRadius = 20
+・minimumVulnerabilityCostMultiplier = 0.1
+・angleCostWeight = 1
+・GeometryEpsilon = 0.0001（数値誤差許容値）
+
+一次走査半径:
+
+scanRadius
+= sqrt(縮小後面積)
+  × sqrt(impactEnergy / baseFractureResistance)
+
+minimumScanRadius～maximumScanRadiusの範囲へ制限する。
+
+クラック進展コスト:
+
+fractureCost
+= baseFractureResistance
+  × ノード間距離
+  × vulnerabilityMultiplier
+  × angleMultiplier
+
+### GlassStatus
+
+・virtualPointCount = 32
+・initialCrackCount = 0（virtualPointCountが0の場合のみ）
+・minimumInitialVulnerability = 0
+・maximumInitialVulnerability = 1
+・minimumBreakableArea = 0.04
+
+---
+
+## 成長要素として保持した射撃係数
+
+・fireRate = 6.25
+・simultaneousShotCount = 1
+
+現在はPlayerShooterControllerの発射処理へ未接続。
+今後の弾幕強化で使用する予定のため残している。
+
+---
+
+## 2026-07-16に削除した未使用係数
+
+BulletStatus:
+
+・initialSpeed
+・tipCrossSectionArea
+・stoppingDistance
+
+GlassStatus:
+
+・impactAttenuationRate
+・crackInitiationResistance
+・crackPropagationResistance
+・branchThreshold
+・branchCost
+・fragmentSeparationResistance
+・internalDefectDensity
+・internalDefectVariation
+・resolution
+・virtualPointSpacing
+・weaknessDistribution
+・repairSpeed
+
+併せて削除したもの:
+
+・各係数のpublicプロパティ
+・GlassStatus.CopyFromのコピー処理
+・GlassStatus.OnValidateの補正処理
+・未使用のGlassStatus.Crackpositionsメソッド
+・未使用のGlassWeaknessDistribution enum
+・GlassCalculationVerifierの未使用係数表示
+・New Scene.unityの旧シリアライズ値

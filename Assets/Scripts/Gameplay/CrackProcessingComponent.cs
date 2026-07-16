@@ -227,6 +227,75 @@ namespace GlassShooter.Gameplay
             RenderCracks();
         }
 
+        /// <summary>クラックの末端をランダムに1つ選び、末端側の一区間を修復します。</summary>
+        public bool HealCracks()
+        {
+            EnsureCrackGraphInitialized();
+            if (crackConnections.Count == 0)
+            {
+                return false;
+            }
+
+            var degreeByNodeId = new int[crackNodes.Count];
+            for (int i = 0; i < crackConnections.Count; i++)
+            {
+                CrackConnection connection = crackConnections[i];
+                degreeByNodeId[connection.nodeAId]++;
+                degreeByNodeId[connection.nodeBId]++;
+            }
+
+            var terminalNodeIds = new List<int>();
+            for (int nodeId = 0; nodeId < degreeByNodeId.Length; nodeId++)
+            {
+                if (degreeByNodeId[nodeId] == 1)
+                {
+                    terminalNodeIds.Add(nodeId);
+                }
+            }
+
+            if (terminalNodeIds.Count == 0)
+            {
+                return false;
+            }
+
+            crackRandom ??= new System.Random(crackRandomSeed);
+            int terminalNodeId = terminalNodeIds[crackRandom.Next(terminalNodeIds.Count)];
+            for (int connectionIndex = 0; connectionIndex < crackConnections.Count; connectionIndex++)
+            {
+                CrackConnection connection = crackConnections[connectionIndex];
+                if (connection.nodeAId != terminalNodeId && connection.nodeBId != terminalNodeId)
+                {
+                    continue;
+                }
+
+                crackConnections.RemoveAt(connectionIndex);
+                break;
+            }
+
+            // GetNodeはIDをリストの添字として扱うため、末端ノード削除後にIDを詰める。
+            crackNodes.RemoveAt(terminalNodeId);
+            for (int nodeId = terminalNodeId; nodeId < crackNodes.Count; nodeId++)
+            {
+                crackNodes[nodeId].id = nodeId;
+            }
+            for (int i = 0; i < crackConnections.Count; i++)
+            {
+                CrackConnection connection = crackConnections[i];
+                if (connection.nodeAId > terminalNodeId)
+                {
+                    connection.nodeAId--;
+                }
+                if (connection.nodeBId > terminalNodeId)
+                {
+                    connection.nodeBId--;
+                }
+            }
+
+            cracks = BuildRenderableCrackPaths();
+            RenderCracks();
+            return true;
+        }
+
         private static Vector2[][] CloneCracks(Vector2[][] source)
         {
             if (source == null || source.Length == 0)
@@ -294,9 +363,12 @@ namespace GlassShooter.Gameplay
                 return;
             }
 
-            // 縮小後の形状に対してクラックを計算する。
-            // 破砕前後のどちらでも、追撃分だけ最終回収面積が減る。
-            if (!ApplySizeMultiplier(bulletStatus.ContactSizeMultiplier))
+            // ボス本体は蓄積破砕を前提とするため、着弾で縮小させない。
+            // 分離後の通常破片にはBossGlassComponentを継承しないので、
+            // 追撃分だけ最終回収面積が減る。
+            bool preventsImpactShrink = TryGetComponent(out BossGlassComponent _);
+            if (!preventsImpactShrink &&
+                !ApplySizeMultiplier(bulletStatus.ContactSizeMultiplier))
             {
                 return;
             }

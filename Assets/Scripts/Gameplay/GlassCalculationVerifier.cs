@@ -70,12 +70,9 @@ namespace Gameplay
             }
 
             Projectile projectile = player != null ? player.ProjectilePrefab : null;
-            float configuredSpeed = sourceBullet.InitialSpeed;
-            float actualSpeed = projectile != null ? projectile.Speed : configuredSpeed;
-            float launchImpactEnergy = CalculateConvertedEnergy(
-                sourceBullet.Mass,
-                configuredSpeed,
-                sourceBullet.CrackConversionEfficiency);
+            float actualSpeed = projectile != null
+                ? projectile.Speed
+                : sourceBullet.CurrentVelocity.magnitude;
             float minimumImpactEnergy = CalculateConvertedEnergy(
                 sourceBullet.Mass,
                 actualSpeed,
@@ -85,7 +82,7 @@ namespace Gameplay
             float characteristicLength = Mathf.Sqrt(maximumArea);
             float resistance = crackSettingsSource != null
                 ? crackSettingsSource.BaseFractureResistance
-                : glass.CrackPropagationResistance;
+                : 1f;
             float minimumRadius = crackSettingsSource != null
                 ? crackSettingsSource.MinimumScanRadius
                 : 0.1f;
@@ -102,17 +99,10 @@ namespace Gameplay
             builder.AppendLine("【弾】")
                 .AppendLine("種類: 破砕弾（クラック形成＋縮小）")
                 .AppendLine($"質量: {sourceBullet.Mass:0.###}")
-                .AppendLine($"BulletStatus初速: {configuredSpeed:0.###}")
                 .AppendLine($"Projectile実移動速度: {actualSpeed:0.###}")
                 .AppendLine($"変換効率: {sourceBullet.CrackConversionEfficiency:0.###}")
-                .AppendLine($"設定初速による発射時衝撃エネルギー: {launchImpactEnergy:0.###}")
                 .AppendLine($"最小位置Y: {(player != null ? player.MoveLimitMin.y : 0f):0.###}")
                 .AppendLine($"最小着弾エネルギー: {minimumImpactEnergy:0.###}（現在は等速なのでY非依存）");
-
-            if (!Mathf.Approximately(configuredSpeed, actualSpeed))
-            {
-                builder.AppendLine("警告: BulletStatus初速とProjectile実移動速度が一致していません。");
-            }
 
             builder.AppendLine()
                 .AppendLine("【走査半径】")
@@ -137,20 +127,15 @@ namespace Gameplay
                 .AppendLine($"実発射間隔: {(player != null ? player.FireInterval : 0f):0.###}")
                 .AppendLine($"発射レート: {sourceBullet.FireRate:0.###}")
                 .AppendLine($"同時発射数: {sourceBullet.SimultaneousShotCount}")
-                .AppendLine($"弾頭断面積 / 停止距離: {sourceBullet.TipCrossSectionArea:0.###} / {sourceBullet.StoppingDistance:0.###}")
                 .AppendLine($"着弾時の接触サイズ倍率: {sourceBullet.ContactSizeMultiplier:0.####}")
                 .AppendLine($"厚さ / 密度 / 質量: {glass.Thickness:0.###} / {glass.Density:0.###} / {glass.Mass:0.###}")
-                .AppendLine($"クラック開始抵抗 / 伝播抵抗: {glass.CrackInitiationResistance:0.###} / {glass.CrackPropagationResistance:0.###}")
-                .AppendLine($"分岐閾値 / 分岐コスト: {glass.BranchThreshold:0.###} / {glass.BranchCost:0.###}")
-                .AppendLine($"破片分離抵抗: {glass.FragmentSeparationResistance:0.###}")
-                .AppendLine($"初期亀裂数 / 内部欠陥密度 / ばらつき: {glass.InitialCrackCount} / {glass.InternalDefectDensity:0.###} / {glass.InternalDefectVariation:0.###}")
-                .AppendLine($"仮想点数 / 間隔: {glass.VirtualPointCount} / {glass.VirtualPointSpacing:0.###}")
+                .AppendLine($"初期亀裂数 / 仮想点数: {glass.InitialCrackCount} / {glass.VirtualPointCount}")
                 .AppendLine($"脆弱度範囲: {glass.MinimumInitialVulnerability:0.###}～{glass.MaximumInitialVulnerability:0.###}")
-                .AppendLine($"解像度 / 形状 / 弱点分布: {glass.Resolution} / {glass.OutlineShape} / {glass.WeaknessDistribution}")
+                .AppendLine($"形状: {glass.OutlineShape}")
                 .AppendLine($"固定点数 / コア位置 / 固定強度: {glass.FixedPositions.Length} / {glass.CorePosition} / {glass.FixedPositionStrength:0.###}")
                 .AppendLine($"破片攻撃倍率 / 落下速度倍率: {glass.FragmentAttackMultiplier:0.###} / {glass.FragmentFallSpeedMultiplier:0.###}")
-                .AppendLine($"最小破壊面積 / 修復速度: {glass.MinimumBreakableArea:0.###} / {glass.RepairSpeed:0.###}")
-                .AppendLine($"重力倍率 / 弾性 / 衝撃減衰: {glass.GravityMultiplier:0.###} / {glass.Elasticity:0.###} / {glass.ImpactAttenuationRate:0.###}")
+                .AppendLine($"最小破壊面積: {glass.MinimumBreakableArea:0.###}")
+                .AppendLine($"重力倍率 / 弾性: {glass.GravityMultiplier:0.###} / {glass.Elasticity:0.###}")
                 .AppendLine($"全体拡大率 / 環境重力倍率 / 有効重力: {(environment != null ? environment.GlobalScaleMultiplier : 1f):0.###} / {(environment != null ? environment.GravityMultiplier : 0.1f):0.###} / {(environment != null ? environment.EffectiveGravity : Physics2D.gravity)}");
 
             report = builder.ToString();

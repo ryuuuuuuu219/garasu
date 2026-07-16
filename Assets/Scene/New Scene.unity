@@ -202,12 +202,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GlassShooter.Gameplay.BulletStatus
   mass: 1
-  initialSpeed: 12
   currentVelocity: {x: 0, y: 12}
   fireRate: 6.25
   simultaneousShotCount: 1
-  tipCrossSectionArea: 0.05
-  stoppingDistance: 0.1
   crackConversionEfficiency: 0.5
   contactSizeMultiplier: 0.904382
 --- !u!4 &848862845
@@ -242,21 +239,10 @@ MonoBehaviour:
   mass: 1
   gravityMultiplier: 1
   elasticity: 0.1
-  impactAttenuationRate: 0.1
-  crackInitiationResistance: 10
-  crackPropagationResistance: 1
-  branchThreshold: 10
-  branchCost: 1
-  fragmentSeparationResistance: 1
   initialCrackCount: 0
-  internalDefectDensity: 1
-  internalDefectVariation: 0.25
   minimumInitialVulnerability: 0
   maximumInitialVulnerability: 1
-  resolution: 8
   virtualPointCount: 32
-  virtualPointSpacing: 0.5
-  weaknessDistribution: 1
   outlineShape: 1
   fixedPositions: []
   corePosition: {x: 0, y: 0}
@@ -264,7 +250,6 @@ MonoBehaviour:
   fragmentAttackMultiplier: 1
   fragmentFallSpeedMultiplier: 1
   minimumBreakableArea: 0.04
-  repairSpeed: 0
 --- !u!114 &848862847
 MonoBehaviour:
   m_ObjectHideFlags: 0

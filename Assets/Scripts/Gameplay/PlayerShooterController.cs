@@ -33,6 +33,13 @@ namespace GlassShooter.Gameplay
         public float MoveSpeed => moveSpeed;
         public float FireInterval => fireInterval;
 
+        /// <summary>成長画面で確定したプレイヤーステータスを反映します。</summary>
+        public void ApplyGrowthStatus(float newMoveSpeed, float newFireInterval)
+        {
+            moveSpeed = Mathf.Max(0f, newMoveSpeed);
+            fireInterval = Mathf.Max(0.01f, newFireInterval);
+        }
+
         private void Awake()
         {
             inputState = GetComponent<KeyboardInputState>();
