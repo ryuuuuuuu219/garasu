@@ -175,7 +175,7 @@ namespace GlassShooter.Gameplay
                 return;
             }
 
-            resourceText.text = $"資源  {resource.Resource}";
+            resourceText.text = $"資源  {resource.Resource:0.###}";
             foreach (GrowthStatDefinition definition in GrowthStatusComponent.DisplayDefinitions)
             {
                 RowView row = rows[definition.Id];
@@ -189,7 +189,7 @@ namespace GlassShooter.Gameplay
             }
         }
 
-        private void OnResourceChanged(int currentResource)
+        private void OnResourceChanged(float currentResource)
         {
             RefreshAll();
         }

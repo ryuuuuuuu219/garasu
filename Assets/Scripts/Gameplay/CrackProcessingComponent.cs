@@ -36,6 +36,10 @@ namespace GlassShooter.Gameplay
         [SerializeField, Range(0.01f, 1f)] private float minimumVulnerabilityCostMultiplier = 0.1f;
         [SerializeField, Min(0f)] private float angleCostWeight = 1f;
 
+        [Header("Boundary Completion")]
+        [SerializeField, Min(0f)] private float boundaryCompletionDistance = 0.15f;
+        [SerializeField, Min(1)] private int maxBoundaryCompletionCandidates = 3;
+
         private readonly List<CrackNode> crackNodes = new List<CrackNode>();
         private readonly List<CrackConnection> crackConnections = new List<CrackConnection>();
         private System.Random crackRandom;
@@ -115,6 +119,12 @@ namespace GlassShooter.Gameplay
             public CrackCandidate secondary;
             public bool hasSecondary;
             public float totalFractureCost;
+        }
+
+        private sealed class BoundaryCompletionCandidate
+        {
+            public Vector2[] completedPath;
+            public float distanceSquared;
         }
 
         private readonly struct AngleMarker
@@ -1501,6 +1511,9 @@ namespace GlassShooter.Gameplay
                     return;
                 }
                 AddConnection(candidate.from, candidate.to, candidate.fractureCost);
+                ResourceComponent.Instance.Add(CalculateWorldCrackLength(
+                    candidate.from.localPosition,
+                    candidate.to.localPosition));
                 debugAcceptedConnections.Add(new DebugLine(
                     candidate.from.localPosition,
                     candidate.to.localPosition));
@@ -1705,7 +1718,9 @@ namespace GlassShooter.Gameplay
                     }
                 }
             }
-            return false;
+
+            // 通常判定では外周へ届かなかった短い隙間だけを補完する。
+            return TryCompleteNearBoundaryPath();
 
             void AddIfOnBoundary(int nodeId)
             {
@@ -1715,6 +1730,137 @@ namespace GlassShooter.Gameplay
                     boundaryNodeIds.Add(nodeId);
                 }
             }
+        }
+
+        private bool TryCompleteNearBoundaryPath()
+        {
+            if (boundaryCompletionDistance <= GeometryEpsilon ||
+                maxBoundaryCompletionCandidates <= 0 ||
+                outline == null ||
+                outline.Length < 3)
+            {
+                return false;
+            }
+
+            var degreeByNodeId = new int[crackNodes.Count];
+            for (int i = 0; i < crackConnections.Count; i++)
+            {
+                CrackConnection connection = crackConnections[i];
+                if (connection.nodeAId >= 0 && connection.nodeAId < degreeByNodeId.Length)
+                {
+                    degreeByNodeId[connection.nodeAId]++;
+                }
+                if (connection.nodeBId >= 0 && connection.nodeBId < degreeByNodeId.Length)
+                {
+                    degreeByNodeId[connection.nodeBId]++;
+                }
+            }
+
+            float maximumDistanceSquared = boundaryCompletionDistance * boundaryCompletionDistance;
+            var candidates = new List<BoundaryCompletionCandidate>();
+            for (int nodeId = 0; nodeId < crackNodes.Count; nodeId++)
+            {
+                CrackNode tip = crackNodes[nodeId];
+                if (degreeByNodeId[nodeId] != 1 || IsPointOnOutline(tip.localPosition) ||
+                    !TryFindShortestBoundaryPathToNode(nodeId, out Vector2[] pathToTip))
+                {
+                    continue;
+                }
+
+                for (int edgeIndex = 0; edgeIndex < outline.Length; edgeIndex++)
+                {
+                    Vector2 boundaryPoint = ClosestPointOnSegment(
+                        tip.localPosition,
+                        outline[edgeIndex],
+                        outline[(edgeIndex + 1) % outline.Length]);
+                    float distanceSquared = (boundaryPoint - tip.localPosition).sqrMagnitude;
+                    if (distanceSquared <= GeometryEpsilon * GeometryEpsilon ||
+                        distanceSquared > maximumDistanceSquared ||
+                        Approximately(boundaryPoint, pathToTip[0]) ||
+                        IntersectsOuterBoundaryBeforeTarget(tip.localPosition, boundaryPoint))
+                    {
+                        continue;
+                    }
+
+                    var boundaryNode = new CrackNode
+                    {
+                        id = -1,
+                        localPosition = boundaryPoint,
+                        vulnerability = 1f,
+                        isSurfaceFlaw = true
+                    };
+                    if (IntersectsExistingCrackImproperly(tip, boundaryNode) ||
+                        ContainsEquivalentCompletion(candidates, tip.localPosition, boundaryPoint))
+                    {
+                        continue;
+                    }
+
+                    var completedPath = new Vector2[pathToTip.Length + 1];
+                    Array.Copy(pathToTip, completedPath, pathToTip.Length);
+                    completedPath[^1] = boundaryPoint;
+                    candidates.Add(new BoundaryCompletionCandidate
+                    {
+                        completedPath = completedPath,
+                        distanceSquared = distanceSquared
+                    });
+                }
+            }
+
+            candidates.Sort((a, b) => a.distanceSquared.CompareTo(b.distanceSquared));
+            int attemptCount = Mathf.Min(maxBoundaryCompletionCandidates, candidates.Count);
+            for (int i = 0; i < attemptCount; i++)
+            {
+                if (TrySeparateAlongCrack(candidates[i].completedPath))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private bool TryFindShortestBoundaryPathToNode(int targetNodeId, out Vector2[] shortestPath)
+        {
+            shortestPath = Array.Empty<Vector2>();
+            float shortestLength = float.PositiveInfinity;
+            for (int nodeId = 0; nodeId < crackNodes.Count; nodeId++)
+            {
+                CrackNode node = crackNodes[nodeId];
+                if (nodeId == targetNodeId || !IsPointOnOutline(node.localPosition) ||
+                    !TryFindNodePath(nodeId, targetNodeId, out Vector2[] candidatePath))
+                {
+                    continue;
+                }
+
+                float length = 0f;
+                for (int pointIndex = 0; pointIndex + 1 < candidatePath.Length; pointIndex++)
+                {
+                    length += Vector2.Distance(candidatePath[pointIndex], candidatePath[pointIndex + 1]);
+                }
+                if (length < shortestLength)
+                {
+                    shortestLength = length;
+                    shortestPath = candidatePath;
+                }
+            }
+            return shortestPath.Length >= 2;
+        }
+
+        private static bool ContainsEquivalentCompletion(
+            IReadOnlyList<BoundaryCompletionCandidate> candidates,
+            Vector2 tip,
+            Vector2 boundaryPoint)
+        {
+            for (int i = 0; i < candidates.Count; i++)
+            {
+                Vector2[] path = candidates[i].completedPath;
+                if (path != null && path.Length >= 2 &&
+                    Approximately(path[^2], tip) &&
+                    Approximately(path[^1], boundaryPoint))
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private bool TryFindNodePath(int startNodeId, int targetNodeId, out Vector2[] path)
@@ -1851,6 +1997,8 @@ namespace GlassShooter.Gameplay
                 0.01f,
                 1f);
             angleCostWeight = Mathf.Max(0f, angleCostWeight);
+            boundaryCompletionDistance = Mathf.Max(0f, boundaryCompletionDistance);
+            maxBoundaryCompletionCandidates = Mathf.Max(1, maxBoundaryCompletionCandidates);
         }
 
         /// <summary>
@@ -1901,8 +2049,9 @@ namespace GlassShooter.Gameplay
                 ? glassStatus.MinimumBreakableArea
                 : 0.04f;
 
-            // どちらかが細片になる分割は成立させず、元破片を残す。
-            if (firstArea <= minimumArea + GeometryEpsilon ||
+            // 両方とも生成不能になる分割だけを拒否する。片側だけが細片なら分割を許可し、
+            // CreateFragment側で細片を生成せず除去することで細い領域の成長阻害を防ぐ。
+            if (firstArea <= minimumArea + GeometryEpsilon &&
                 secondArea <= minimumArea + GeometryEpsilon)
             {
                 return false;
@@ -2104,6 +2253,18 @@ namespace GlassShooter.Gameplay
             }
 
             return twiceArea * 0.5f;
+        }
+
+        private float CalculateWorldCrackLength(Vector2 from, Vector2 to)
+        {
+            return transform.TransformVector(to - from).magnitude;
+        }
+
+        private float CalculateWorldFragmentArea(float localArea)
+        {
+            Vector3 worldRight = transform.TransformVector(Vector3.right);
+            Vector3 worldUp = transform.TransformVector(Vector3.up);
+            return localArea * Vector3.Cross(worldRight, worldUp).magnitude;
         }
 
         private static float Cross(Vector2 lhs, Vector2 rhs)
@@ -2333,6 +2494,7 @@ namespace GlassShooter.Gameplay
 
             GlassStatus fragmentStatus = fragment.AddComponent<GlassStatus>();
             fragmentStatus.CopyFrom(glassStatus);
+            fragmentStatus.SetResourceRewardArea(CalculateWorldFragmentArea(fragmentArea));
 
             Rigidbody2D body = fragment.AddComponent<Rigidbody2D>();
             body.bodyType = RigidbodyType2D.Dynamic;
@@ -2383,6 +2545,8 @@ namespace GlassShooter.Gameplay
             target.maximumScanRadius = maximumScanRadius;
             target.minimumVulnerabilityCostMultiplier = minimumVulnerabilityCostMultiplier;
             target.angleCostWeight = angleCostWeight;
+            target.boundaryCompletionDistance = boundaryCompletionDistance;
+            target.maxBoundaryCompletionCandidates = maxBoundaryCompletionCandidates;
         }
 
         private static Vector2 CalculateCentroid(IReadOnlyList<Vector2> polygon)
@@ -2462,14 +2626,6 @@ namespace GlassShooter.Gameplay
 
             float multiplier = bulletStatus.ContactSizeMultiplier;
             if (!Mathf.Approximately(multiplier, 1f))
-            {
-                Destroy(gameObject);
-            }
-        }
-
-        private void FixedUpdate()
-        {
-            if (transform.position.y < destroyBelowY)
             {
                 Destroy(gameObject);
             }

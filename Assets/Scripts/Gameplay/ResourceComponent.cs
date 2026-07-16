@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using UnityEngine;
 
 namespace GlassShooter.Gameplay
@@ -7,13 +7,13 @@ namespace GlassShooter.Gameplay
     [DisallowMultipleComponent]
     public sealed class ResourceComponent : MonoBehaviour
     {
-        [SerializeField, Min(0)] private int resource = 100;
+        [SerializeField, Min(0f)] private float resource = 100f;
 
         private static ResourceComponent instance;
 
         public static ResourceComponent Instance => EnsureInstance();
-        public int Resource => resource;
-        public event Action<int> ResourceChanged;
+        public float Resource => resource;
+        public event Action<float> ResourceChanged;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void CreateBeforeFirstScene()
@@ -21,7 +21,7 @@ namespace GlassShooter.Gameplay
             EnsureInstance();
         }
 
-        public void Add(int amount)
+        public void Add(float amount)
         {
             if (amount <= 0)
             {

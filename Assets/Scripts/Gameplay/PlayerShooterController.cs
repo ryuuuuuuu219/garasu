@@ -19,8 +19,15 @@ namespace GlassShooter.Gameplay
         [SerializeField, Min(0.01f)] private float fireInterval = 0.16f;
         [SerializeField] private BulletStatus bulletStatus;
 
-        [SerializeField] private Vector2 Movelimitmin;
-        [SerializeField] private Vector2 Movelimitmax;
+        [SerializeField] private Vector2 Movelimitmin = new Vector2 (-15f, -8.5f);
+        [SerializeField] private Vector2 Movelimitmax = new Vector2 (15f, 8.5f);
+
+        [SerializeField] Camera mainCam;
+
+        [Header("Background Grid")]
+        [SerializeField, Min(0.1f)] private float gridSpacing = 2f;
+        [SerializeField, Min(0.001f)] private float gridLineWidth = 0.025f;
+        [SerializeField, Range(0f, 1f)] private float gridAlpha = 1f;
 
         private KeyboardInputState inputState;
         private float nextFireTime;
@@ -45,8 +52,11 @@ namespace GlassShooter.Gameplay
 
         private void Awake()
         {
+            mainCam = Camera.main;
+
             inputState = GetComponent<KeyboardInputState>();
             CacheHitbox();
+            CreateBackgroundGrid();
 
             GameObject child = new GameObject("LineRenderer");
             child.transform.SetParent(transform);
@@ -68,7 +78,93 @@ namespace GlassShooter.Gameplay
             }
 
             Debug_impactFromMouse();
+            chaseCamera();
 
+        }
+
+        public Vector3 cameraCenter=Vector3.zero;
+        void chaseCamera()
+        {
+            if (mainCam == null)
+            {
+                return;
+            }
+
+            Vector3 vector = transform.position-cameraCenter;
+            Vector3 cameraPos = cameraCenter + vector * 0.6f;
+            cameraPos.z = mainCam.transform.position.z;
+
+            mainCam.transform.position = cameraPos;
+        }
+
+        private void CreateBackgroundGrid()
+        {
+            GameObject gridRoot = new GameObject("BackgroundGrid");
+            gridRoot.transform.SetParent(transform);
+            gridRoot.transform.localPosition = Vector3.zero;
+
+            Shader spriteShader = Shader.Find("Sprites/Default");
+            Material gridMaterial = spriteShader != null
+                ? new Material(spriteShader)
+                : null;
+            Color gridColor = new Color(1f, 1f, 1f, gridAlpha);
+
+            Vector2 gridMin = Movelimitmin;
+            Vector2 gridMax = Movelimitmax;
+            if (mainCam != null && mainCam.orthographic)
+            {
+                float verticalMargin = mainCam.orthographicSize;
+                float horizontalMargin = verticalMargin * mainCam.aspect;
+                gridMin -= new Vector2(horizontalMargin, verticalMargin);
+                gridMax += new Vector2(horizontalMargin, verticalMargin);
+            }
+
+            float firstX = Mathf.Floor(gridMin.x / gridSpacing) * gridSpacing;
+            float lastX = Mathf.Ceil(gridMax.x / gridSpacing) * gridSpacing;
+            for (float x = firstX; x <= lastX + Mathf.Epsilon; x += gridSpacing)
+            {
+                CreateGridLine(
+                    gridRoot.transform,
+                    gridMaterial,
+                    gridColor,
+                    new Vector3(x, gridMin.y, 0f),
+                    new Vector3(x, gridMax.y, 0f));
+            }
+
+            float firstY = Mathf.Floor(gridMin.y / gridSpacing) * gridSpacing;
+            float lastY = Mathf.Ceil(gridMax.y / gridSpacing) * gridSpacing;
+            for (float y = firstY; y <= lastY + Mathf.Epsilon; y += gridSpacing)
+            {
+                CreateGridLine(
+                    gridRoot.transform,
+                    gridMaterial,
+                    gridColor,
+                    new Vector3(gridMin.x, y, 0f),
+                    new Vector3(gridMax.x, y, 0f));
+            }
+        }
+
+        private void CreateGridLine(
+            Transform parent,
+            Material material,
+            Color color,
+            Vector3 start,
+            Vector3 end)
+        {
+            GameObject lineObject = new GameObject("GridLine");
+            lineObject.transform.SetParent(parent);
+
+            LineRenderer line = lineObject.AddComponent<LineRenderer>();
+            line.sharedMaterial = material;
+            line.positionCount = 2;
+            line.SetPosition(0, start);
+            line.SetPosition(1, end);
+            line.startWidth = gridLineWidth;
+            line.endWidth = gridLineWidth;
+            line.startColor = color;
+            line.endColor = color;
+            line.useWorldSpace = true;
+            line.sortingOrder = -100;
         }
 
         void Debug_impactFromMouse()

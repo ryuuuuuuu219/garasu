@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using UnityEngine;
 
 namespace GlassShooter.Gameplay
@@ -49,6 +49,9 @@ namespace GlassShooter.Gameplay
         [SerializeField, Min(0f)] private float fixedPositionStrength = 1f;
         [SerializeField, Min(0f)] private float fragmentAttackMultiplier = 1f;
         [SerializeField, Min(0f)] private float fragmentFallSpeedMultiplier = 1f;
+        [SerializeField, Min(0f)] private float resourceRewardArea;
+
+        private bool resourceRewardGranted;
         [SerializeField, Min(0f)] private float minimumBreakableArea = 0.04f;
 
         public float Thickness => thickness;
@@ -66,6 +69,12 @@ namespace GlassShooter.Gameplay
         public float FixedPositionStrength => fixedPositionStrength;
         public float FragmentAttackMultiplier => fragmentAttackMultiplier;
         public float FragmentFallSpeedMultiplier => fragmentFallSpeedMultiplier;
+
+        public void SetResourceRewardArea(float area)
+        {
+            resourceRewardArea = Mathf.Max(0f, area);
+            resourceRewardGranted = false;
+        }
         public float MinimumBreakableArea => minimumBreakableArea;
 
         /// <summary>成長画面で確定したガラスステータスを反映します。</summary>
@@ -197,5 +206,25 @@ namespace GlassShooter.Gameplay
             }
             fixedPositions ??= Array.Empty<Vector2>();
         }
+
+        //消滅処理
+        public void DestroyGlass()
+        {
+            if (!resourceRewardGranted && resourceRewardArea > 0f)
+            {
+                resourceRewardGranted = true;
+                ResourceComponent.Instance.Add(resourceRewardArea);
+            }
+            Destroy(gameObject);
+        }
+
+        public void Update()
+        {
+            if(transform.position.y < -10f) // 画面下に落ちたら消滅
+            {
+                DestroyGlass();
+            }
+        }
+
     }
 }
