@@ -23,7 +23,7 @@ namespace Gameplay
         {
             if(!manualTrigger) return;
             manualTrigger = false;
-            SpawnEnemy("Basic", new Vector2(0f, 4f), 0);
+            SpawnEnemy("Boss_A", new Vector2(0f, 4f), 0);
         }
 
         // EnemyTypeに対応する外周頂点を、敵の中心を原点としたローカル座標で返します。
@@ -39,15 +39,49 @@ namespace Gameplay
                         new Vector2(4f, 1.5f),
                         new Vector2(4f, -1.5f)
                     };
-
                 case "Boss_A":
-                    return CreateBossACutRingPolygon();
+                    return PosArray_Multilayer(12,3,0,12,1,0);
+
 
                 // 新しい形は、EnemyTypeのcaseと外周頂点をここへ追加します。
                 default:
                     Debug.LogWarning($"Unknown EnemyType '{enemyType}'. Using Basic outline.", this);
                     return GetPositionsForPattern("Basic");
             }
+        }
+
+        Vector2[] PosArray_Multilayer(int outerVertex, float outerRadius,float outerPhase, int innerVertex, float innerRadius, float innerPhase)
+        {
+            Vector2[] returnarray = new Vector2[outerVertex+innerVertex+4];
+            returnarray[0]=new Vector2(0,outerRadius);
+            returnarray[1]=new Vector2(1,innerRadius);
+
+            for(int i=2; i<2+innerVertex; i++)
+            {
+                int v = i - 2;
+                float d = 360f / innerVertex + innerPhase;
+                returnarray[i] = pos(innerRadius, d);
+            }
+
+            returnarray[2+innerVertex]=new Vector2(0,innerRadius);
+            returnarray[2+innerVertex+1]=new Vector2(0,outerRadius);
+
+            for (int i = 4 + innerVertex; i < returnarray.Length; i++)
+            {
+                int v = i - 4 - innerVertex;
+                float d = 360f / outerVertex + outerPhase;
+                d *= -1;
+                returnarray[i] = pos(outerRadius, d);
+
+            }
+
+            return returnarray;
+        }
+
+        Vector2 pos(float radius, float degree)
+        {
+            float rad = Mathf.Deg2Rad * degree;
+            return Quaternion.Euler(0,0,rad)*Vector3.up*radius;
         }
 
         private SpownPattern[] _spownPatterns;
@@ -84,7 +118,14 @@ namespace Gameplay
                     EnemyType = "Basic",
                     Positions = new[] { new Vector2(0f, 4f) },
                     IsActive = false
-                }
+                },
+                new SpownPattern {
+                    Time = 100f,
+                    EnemyType = "Boss_A",
+                    Positions = new[] { new Vector2(0f, 4f) },
+                    IsActive = false
+                    }
+
             };
         }
 
@@ -118,119 +159,9 @@ namespace Gameplay
             _lastSpawnedEnemyId++;
             Vector2[] outlinePoints = GetPositionsForPattern(enemyType);
 
-            string enemyName = enemyType == "Boss_A"
-                ? "Boss_A"
-                : $"{enemyType}_{positionIndex}";
-            GameObject enemy = new GameObject(enemyName);
+            GameObject enemy = new GameObject($"{enemyType}_{positionIndex}");
             Init(enemy, outlinePoints);
-
-            switch (enemyType)
-            {
-                case "Boss_A":
-                    enemy.AddComponent<BossGlassComponent>();
-                    ConfigureBossACutRingVisual(enemy);
-                    break;
-            }
-
             enemy.transform.localPosition = new Vector3(localPosition.x, localPosition.y, 0f);
-        }
-
-        private static Vector2[] CreateRegularPolygon(float radius, int vertexCount)
-        {
-            vertexCount = Mathf.Max(3, vertexCount);
-            radius = Mathf.Max(0f, radius);
-            var points = new Vector2[vertexCount];
-            const float startAngle = 90f;
-            float angleStep = 360f / vertexCount;
-
-            for (int i = 0; i < vertexCount; i++)
-            {
-                float angle = (startAngle + angleStep * i) * Mathf.Deg2Rad;
-                points[i] = new Vector2(
-                    Mathf.Cos(angle) * radius,
-                    Mathf.Sin(angle) * radius);
-            }
-
-            return points;
-        }
-
-        private static Vector2[] CreateBossACutRingPolygon()
-        {
-            Vector2[] outerPoints = CreateRegularPolygon(3f, 12);
-            Vector2[] innerPoints = CreateRegularPolygon(1f, 12);
-            var outline = new System.Collections.Generic.List<Vector2>(26)
-            {
-                // 外周左上 → 外周上端 → 内周上端へ入る。
-                outerPoints[1],
-                outerPoints[0],
-                innerPoints[0]
-            };
-
-            // 内周は左上から反時計回りに一周する。
-            for (int i = 1; i < innerPoints.Length; i++)
-            {
-                outline.Add(innerPoints[i]);
-            }
-            outline.Add(innerPoints[0]);
-
-            // 同じ切れ目を外周上端まで戻る。
-            outline.Add(outerPoints[0]);
-
-            // 外周右上から時計回りに外周を閉じる。
-            for (int i = outerPoints.Length - 1; i >= 2; i--)
-            {
-                outline.Add(outerPoints[i]);
-            }
-
-            return outline.ToArray();
-        }
-
-        private void ConfigureBossACutRingVisual(GameObject boss)
-        {
-            Vector2[] outerPoints = CreateRegularPolygon(3f, 12);
-            Vector2[] innerPoints = CreateRegularPolygon(1f, 12);
-            Material outlineMaterial = null;
-            GlassSurfaceLineRenderer processingOutline =
-                boss.GetComponentInChildren<GlassSurfaceLineRenderer>(true);
-            if (processingOutline != null &&
-                processingOutline.TryGetComponent(out LineRenderer processingLine))
-            {
-                outlineMaterial = processingLine.sharedMaterial;
-                // クラック計算用の単一輪郭は保持し、可視化は下の外周・内周で行う。
-                processingLine.enabled = false;
-            }
-
-            GameObject outerObject = new GameObject("Boss_A_OuterOutline");
-            outerObject.transform.SetParent(boss.transform, false);
-            GlassSurfaceLineRenderer outerRenderer =
-                outerObject.AddComponent<GlassSurfaceLineRenderer>();
-            LineRenderer outerLine = outerObject.GetComponent<LineRenderer>();
-            outerLine.sharedMaterial = outlineMaterial;
-            lrSetting(outerLine);
-            outerRenderer.SetOutline(outerPoints);
-
-            GameObject innerObject = new GameObject("Boss_A_InnerOutline");
-            innerObject.transform.SetParent(boss.transform, false);
-            GlassSurfaceLineRenderer innerRenderer =
-                innerObject.AddComponent<GlassSurfaceLineRenderer>();
-            LineRenderer innerLine = innerObject.GetComponent<LineRenderer>();
-            innerLine.sharedMaterial = outlineMaterial;
-            lrSetting(innerLine);
-            innerRenderer.SetOutline(innerPoints);
-
-            GameObject connectionObject = new GameObject("Boss_A_ZeroWidthCut");
-            connectionObject.transform.SetParent(boss.transform, false);
-            LineRenderer connection = connectionObject.AddComponent<LineRenderer>();
-            connection.sharedMaterial = outlineMaterial;
-            connection.useWorldSpace = false;
-            connection.loop = false;
-            connection.positionCount = 2;
-            connection.SetPosition(0, outerPoints[0]);
-            connection.SetPosition(1, innerPoints[0]);
-            connection.startWidth = 0f;
-            connection.endWidth = 0f;
-            connection.startColor = Color.gray;
-            connection.endColor = Color.gray;
         }
 
         public void Init(GameObject obj, Vector2[] outlinePoints)
