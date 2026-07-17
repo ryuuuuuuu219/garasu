@@ -290,6 +290,11 @@ MonoBehaviour:
   bulletStatus: {fileID: 0}
   Movelimitmin: {x: 0, y: 0}
   Movelimitmax: {x: 0, y: 0}
+  mainCam: {fileID: 0}
+  gridSpacing: 2
+  gridLineWidth: 0.025
+  gridAlpha: 1
+  cameraCenter: {x: 0, y: 0, z: 0}
 --- !u!1 &5180242052140434755
 GameObject:
   m_ObjectHideFlags: 0

@@ -1,4 +1,6 @@
-﻿using UnityEngine;
+﻿using System;
+using System.Collections.Generic;
+using UnityEngine;
 
 namespace GlassShooter.Gameplay
 {
@@ -9,30 +11,62 @@ namespace GlassShooter.Gameplay
     [DisallowMultipleComponent]
     public sealed class BossGlassComponent : MonoBehaviour
     {
+        [Serializable]
         public struct ModuleDetail
         {
-            public GameObject module;
-            public float healingRate;
-            public float healingtimer;
+            public GameObject Module;
+            [Min(0.01f)] public float HealingInterval;
+            [HideInInspector] public float RemainingHealingTime;
+
+            public ModuleDetail(GameObject module, float healingInterval)
+            {
+                Module = module;
+                HealingInterval = Mathf.Max(0.01f, healingInterval);
+                RemainingHealingTime = HealingInterval;
+            }
         }
 
-        public ModuleDetail[] modules;
+        [SerializeField] private List<ModuleDetail> modules = new List<ModuleDetail>();
 
-        private void Awake()
+        public IReadOnlyList<ModuleDetail> Modules => modules;
+
+        public void AddModule(GameObject module, float healingInterval)
         {
-            switch (gameObject.name)
+            if (module == null)
             {
-                case "Boss_A":
-                    // noop: Boss_A固有処理は今後ここへ追加する。
-                    CrackProcessingComponent crackProcessing = modules[0].module.GetComponent<CrackProcessingComponent>();
-                    modules[0].healingtimer -= Time.deltaTime;
-                    if (modules[0].healingtimer <= 0f)
-                    {
-                        crackProcessing.HealCracks();
-                        modules[0].healingtimer += modules[0].healingRate; // Reset the healing timer
-                    }
+                Debug.LogWarning("Cannot register a null boss module.", this);
+                return;
+            }
 
-                    break;
+            modules.Add(new ModuleDetail(module, healingInterval));
+        }
+
+        private void Update()
+        {
+            for (int moduleIndex = modules.Count - 1; moduleIndex >= 0; moduleIndex--)
+            {
+                ModuleDetail detail = modules[moduleIndex];
+                if (detail.Module == null)
+                {
+                    modules.RemoveAt(moduleIndex);
+                    continue;
+                }
+
+                detail.RemainingHealingTime -= Time.deltaTime;
+                if (detail.RemainingHealingTime > 0f)
+                {
+                    modules[moduleIndex] = detail;
+                    continue;
+                }
+
+                if (detail.Module.TryGetComponent(out CrackProcessingComponent crackProcessing))
+                {
+                    crackProcessing.HealCracks();
+                }
+
+                detail.HealingInterval = Mathf.Max(0.01f, detail.HealingInterval);
+                detail.RemainingHealingTime += detail.HealingInterval;
+                modules[moduleIndex] = detail;
             }
         }
     }

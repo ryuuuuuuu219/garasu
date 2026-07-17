@@ -49,7 +49,7 @@ namespace GlassShooter.Gameplay
         [SerializeField, Min(0f)] private float fixedPositionStrength = 1f;
         [SerializeField, Min(0f)] private float fragmentAttackMultiplier = 1f;
         [SerializeField, Min(0f)] private float fragmentFallSpeedMultiplier = 1f;
-        [SerializeField, Min(0f)] private float resourceRewardArea;
+        [SerializeField, Min(0f)] public float resourceRewardArea;
 
         private bool resourceRewardGranted;
         [SerializeField, Min(0f)] private float minimumBreakableArea = 0.04f;

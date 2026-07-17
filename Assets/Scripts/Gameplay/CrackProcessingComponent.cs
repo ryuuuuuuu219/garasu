@@ -1511,9 +1511,15 @@ namespace GlassShooter.Gameplay
                     return;
                 }
                 AddConnection(candidate.from, candidate.to, candidate.fractureCost);
-                ResourceComponent.Instance.Add(CalculateWorldCrackLength(
+                float crackScore = CalculateWorldCrackLength(
                     candidate.from.localPosition,
-                    candidate.to.localPosition));
+                    candidate.to.localPosition);
+                ResourceComponent.Instance.Add(crackScore);
+                Vector2 localMidpoint =
+                    (candidate.from.localPosition + candidate.to.localPosition) * 0.5f;
+                ResourceUIManager.Instance?.ShowCrackScore(
+                    transform.TransformPoint(localMidpoint),
+                    crackScore);
                 debugAcceptedConnections.Add(new DebugLine(
                     candidate.from.localPosition,
                     candidate.to.localPosition));
@@ -2533,6 +2539,10 @@ namespace GlassShooter.Gameplay
                 body.linearVelocity = inheritedLinearVelocity;
                 body.angularVelocity = inheritedAngularVelocity;
             }
+
+            ResourceUIManager.Instance?.ShowFragmentScore(
+                fragment,
+                fragmentStatus.resourceRewardArea);
         }
 
         private void CopyGrowthSettingsTo(CrackProcessingComponent target, int pieceIndex)

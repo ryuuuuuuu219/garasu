@@ -1,26 +1,36 @@
 using TMPro;
 using UnityEngine;
-using UnityEngine.UI;
+using UnityEngine.Serialization;
 
 namespace GlassShooter.Gameplay
 {
-    /// <summary>プレイヤーの現在資源をゲーム画面へ表示します。</summary>
+    /// <summary>現在資源と、クラック・破片から得られるスコアを表示します。</summary>
     [DisallowMultipleComponent]
     public sealed class ResourceUIManager : MonoBehaviour
     {
+        [Header("Score Popups")]
+        [FormerlySerializedAs("canvas1")]
+        [SerializeField] private Canvas scoreCanvas;
+        [FormerlySerializedAs("UIprefab")]
+        [SerializeField] private TMP_Text crackScorePrefab;
+        [FormerlySerializedAs("UIprefab2")]
+        [SerializeField] private TMP_Text fragmentScorePrefab;
+        [SerializeField, Min(0.01f)] private float crackScoreLifetime = 1.25f;
+        [SerializeField, Min(0f)] private float crackRiseSpeed = 45f;
+        [SerializeField, Min(0f)] private float fragmentOffset = 32f;
+
+        [Header("Current Resource")]
         [SerializeField] private TMP_Text resourceText;
-        [SerializeField] private TMP_FontAsset font;
         [SerializeField] private string label = "資源";
 
         private ResourceComponent resource;
+        private bool missingPopupWarningLogged;
 
-        private void Awake()
-        {
-            EnsureInterface();
-        }
+        public static ResourceUIManager Instance { get; private set; }
 
         private void OnEnable()
         {
+            Instance = this;
             resource = ResourceComponent.Instance;
             resource.ResourceChanged += Refresh;
             Refresh(resource.Resource);
@@ -28,60 +38,14 @@ namespace GlassShooter.Gameplay
 
         private void OnDisable()
         {
+            if (Instance == this)
+            {
+                Instance = null;
+            }
             if (resource != null)
             {
                 resource.ResourceChanged -= Refresh;
             }
-        }
-
-        private void EnsureInterface()
-        {
-            if (resourceText != null)
-            {
-                return;
-            }
-
-            GameObject canvasObject = new("ResourceCanvas", typeof(RectTransform));
-            canvasObject.transform.SetParent(transform, false);
-            Canvas canvas = canvasObject.AddComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 100;
-
-            CanvasScaler scaler = canvasObject.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920f, 1080f);
-            scaler.matchWidthOrHeight = 0.5f;
-            canvasObject.AddComponent<GraphicRaycaster>();
-
-            GameObject panelObject = new("ResourcePanel", typeof(RectTransform));
-            panelObject.transform.SetParent(canvasObject.transform, false);
-            RectTransform panelRect = panelObject.GetComponent<RectTransform>();
-            panelRect.anchorMin = Vector2.one;
-            panelRect.anchorMax = Vector2.one;
-            panelRect.pivot = Vector2.one;
-            panelRect.anchoredPosition = new Vector2(-24f, -24f);
-            panelRect.sizeDelta = new Vector2(360f, 72f);
-            Image panel = panelObject.AddComponent<Image>();
-            panel.color = new Color(0.035f, 0.045f, 0.07f, 0.88f);
-            panel.raycastTarget = false;
-
-            GameObject textObject = new("ResourceText", typeof(RectTransform));
-            textObject.transform.SetParent(panelObject.transform, false);
-            RectTransform textRect = textObject.GetComponent<RectTransform>();
-            textRect.anchorMin = Vector2.zero;
-            textRect.anchorMax = Vector2.one;
-            textRect.offsetMin = new Vector2(20f, 0f);
-            textRect.offsetMax = new Vector2(-20f, 0f);
-
-            TextMeshProUGUI generatedText = textObject.AddComponent<TextMeshProUGUI>();
-            generatedText.font = font != null ? font : TMP_Settings.defaultFontAsset;
-            generatedText.fontSize = 32f;
-            generatedText.fontStyle = FontStyles.Bold;
-            generatedText.alignment = TextAlignmentOptions.MidlineRight;
-            generatedText.color = new Color(0.92f, 0.95f, 1f, 1f);
-            generatedText.raycastTarget = false;
-            generatedText.richText = false;
-            resourceText = generatedText;
         }
 
         private void Refresh(float currentResource)
@@ -89,6 +53,189 @@ namespace GlassShooter.Gameplay
             if (resourceText != null)
             {
                 resourceText.text = $"{label}  {currentResource:0.###}";
+            }
+        }
+
+        /// <summary>新しく生成されたクラック線分の位置から獲得スコアを浮かせます。</summary>
+        public void ShowCrackScore(Vector3 worldPosition, float score)
+        {
+            if (score <= 0f)
+            {
+                return;
+            }
+
+            FloatingResourceText popup = CreatePopup(crackScorePrefab, score);
+            if (popup == null)
+            {
+                return;
+            }
+
+            popup.InitializeFloating(
+                ResolveCanvas(),
+                worldPosition,
+                crackRiseSpeed,
+                crackScoreLifetime);
+        }
+
+        /// <summary>破片が存在する間、回収予定スコアを破片の直上へ表示します。</summary>
+        public void ShowFragmentScore(GameObject fragment, float score)
+        {
+            if (fragment == null || score <= 0f)
+            {
+                return;
+            }
+
+            FloatingResourceText popup = CreatePopup(fragmentScorePrefab, score);
+            if (popup == null)
+            {
+                return;
+            }
+
+            popup.InitializeFollowing(
+                ResolveCanvas(),
+                fragment,
+                new Vector2(0f, fragmentOffset));
+        }
+
+        private FloatingResourceText CreatePopup(TMP_Text preferredPrefab, float score)
+        {
+            Canvas canvas = ResolveCanvas();
+            TMP_Text template = preferredPrefab != null ? preferredPrefab : resourceText;
+            if (canvas == null || template == null)
+            {
+                if (!missingPopupWarningLogged)
+                {
+                    Debug.LogWarning(
+                        "Score popup requires a Canvas and a TMP_Text prefab or resource text fallback.",
+                        this);
+                    missingPopupWarningLogged = true;
+                }
+                return null;
+            }
+
+            TMP_Text text = Instantiate(template, canvas.transform, false);
+            text.name = "ResourceScorePopup";
+            text.text = $"+{score:0.###}";
+            text.raycastTarget = false;
+
+            RectTransform rect = text.rectTransform;
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.localScale = Vector3.one;
+
+            FloatingResourceText popup = text.GetComponent<FloatingResourceText>();
+            return popup != null ? popup : text.gameObject.AddComponent<FloatingResourceText>();
+        }
+
+        private Canvas ResolveCanvas()
+        {
+            if (scoreCanvas == null && resourceText != null)
+            {
+                scoreCanvas = resourceText.canvas;
+            }
+            return scoreCanvas;
+        }
+    }
+
+    internal sealed class FloatingResourceText : MonoBehaviour
+    {
+        private TMP_Text text;
+        private Canvas canvas;
+        private Camera worldCamera;
+        private GameObject followedObject;
+        private Vector3 worldPosition;
+        private Vector2 screenOffset;
+        private float riseSpeed;
+        private float lifetime;
+        private float elapsedTime;
+        private Color initialColor;
+        private bool followsObject;
+
+        public void InitializeFloating(
+            Canvas targetCanvas,
+            Vector3 position,
+            float pixelsPerSecond,
+            float duration)
+        {
+            Initialize(targetCanvas);
+            worldPosition = position;
+            riseSpeed = pixelsPerSecond;
+            lifetime = Mathf.Max(0.01f, duration);
+            followsObject = false;
+            UpdatePosition();
+        }
+
+        public void InitializeFollowing(
+            Canvas targetCanvas,
+            GameObject target,
+            Vector2 offset)
+        {
+            Initialize(targetCanvas);
+            followedObject = target;
+            screenOffset = offset;
+            followsObject = true;
+            UpdatePosition();
+        }
+
+        private void Initialize(Canvas targetCanvas)
+        {
+            text = GetComponent<TMP_Text>();
+            canvas = targetCanvas;
+            worldCamera = Camera.main;
+            initialColor = text != null ? text.color : Color.white;
+        }
+
+        private void LateUpdate()
+        {
+            if (followsObject && followedObject == null)
+            {
+                Destroy(gameObject);
+                return;
+            }
+
+            elapsedTime += Time.deltaTime;
+            if (!followsObject)
+            {
+                screenOffset.y += riseSpeed * Time.deltaTime;
+                if (text != null)
+                {
+                    Color color = initialColor;
+                    color.a *= 1f - Mathf.Clamp01(elapsedTime / lifetime);
+                    text.color = color;
+                }
+                if (elapsedTime >= lifetime)
+                {
+                    Destroy(gameObject);
+                    return;
+                }
+            }
+
+            UpdatePosition();
+        }
+
+        private void UpdatePosition()
+        {
+            if (canvas == null || worldCamera == null)
+            {
+                return;
+            }
+
+            Vector3 targetWorldPosition = followsObject
+                ? followedObject.transform.position
+                : worldPosition;
+            Vector2 screenPosition = worldCamera.WorldToScreenPoint(targetWorldPosition);
+            Camera canvasCamera = canvas.renderMode == RenderMode.ScreenSpaceOverlay
+                ? null
+                : canvas.worldCamera;
+
+            if (RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                canvas.transform as RectTransform,
+                screenPosition,
+                canvasCamera,
+                out Vector2 localPosition))
+            {
+                transform.localPosition = localPosition + screenOffset;
             }
         }
     }

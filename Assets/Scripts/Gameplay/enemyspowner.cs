@@ -9,7 +9,7 @@ namespace Gameplay
     {
         public GlassStatus glassStatus;
 
-        private struct SpownPattern
+        private struct SpawnPattern
         {
             public float Time;
             public string EnemyType;
@@ -19,11 +19,11 @@ namespace Gameplay
 
         public bool manualTrigger = false;
 
-        void manualTrigger2spown()
+        void TriggerManualSpawn()
         {
             if(!manualTrigger) return;
             manualTrigger = false;
-            SpawnEnemy("Boss_A", new Vector2(0f, 4f), 0);
+            SpawnEnemy("Boss_A_core", new Vector2(0f, 4f), 0);
         }
 
         // EnemyTypeに対応する外周頂点を、敵の中心を原点としたローカル座標で返します。
@@ -40,7 +40,10 @@ namespace Gameplay
                         new Vector2(4f, -1.5f)
                     };
                 case "Boss_A":
-                    return PosArray_Multilayer(12,3,0,12,1,0);
+                case "Boss_A_armor":
+                    return CreateMultiLayerPositions(12, 3f, 0f, 12, 1f, 0f);
+                case "Boss_A_core":
+                    return CreateRegularPolygonPositions(6, 1f, 0f);
 
 
                 // 新しい形は、EnemyTypeのcaseと外周頂点をここへ追加します。
@@ -50,41 +53,59 @@ namespace Gameplay
             }
         }
 
-        Vector2[] PosArray_Multilayer(int outerVertex, float outerRadius,float outerPhase, int innerVertex, float innerRadius, float innerPhase)
+        private Vector2[] CreateRegularPolygonPositions(
+            int vertexCount,
+            float radius,
+            float phaseDegrees)
         {
-            Vector2[] returnarray = new Vector2[outerVertex+innerVertex+4];
-            returnarray[0]=new Vector2(0,outerRadius);
-            returnarray[1]=new Vector2(1,innerRadius);
-
-            for(int i=2; i<2+innerVertex; i++)
+            Vector2[] positions = new Vector2[vertexCount];
+            for (int vertexIndex = 0; vertexIndex < vertexCount; vertexIndex++)
             {
-                int v = i - 2;
-                float d = 360f / innerVertex + innerPhase;
-                returnarray[i] = pos(innerRadius, d);
+                float angleDegrees = phaseDegrees - 360f / vertexCount * vertexIndex;
+                positions[vertexIndex] = GetPositionOnCircle(radius, angleDegrees);
             }
 
-            returnarray[2+innerVertex]=new Vector2(0,innerRadius);
-            returnarray[2+innerVertex+1]=new Vector2(0,outerRadius);
+            return positions;
+        }
 
-            for (int i = 4 + innerVertex; i < returnarray.Length; i++)
+        private Vector2[] CreateMultiLayerPositions(
+            int outerVertexCount,
+            float outerRadius,
+            float outerPhaseDegrees,
+            int innerVertexCount,
+            float innerRadius,
+            float innerPhaseDegrees)
+        {
+            Vector2[] positions = new Vector2[outerVertexCount + innerVertexCount + 4];
+            positions[0] = new Vector2(0f, outerRadius);
+            positions[1] = new Vector2(0f, innerRadius);
+
+            for (int i = 2; i < 2 + innerVertexCount; i++)
             {
-                int v = i - 4 - innerVertex;
-                float d = 360f / outerVertex + outerPhase;
-                d *= -1;
-                returnarray[i] = pos(outerRadius, d);
-
+                int vertexIndex = i - 2;
+                float angleDegrees = 360f / innerVertexCount * vertexIndex + innerPhaseDegrees;
+                positions[i] = GetPositionOnCircle(innerRadius, angleDegrees);
             }
 
-            return returnarray;
+            positions[2 + innerVertexCount] = new Vector2(0f, innerRadius);
+            positions[2 + innerVertexCount + 1] = new Vector2(0f, outerRadius);
+
+            for (int i = 4 + innerVertexCount; i < positions.Length; i++)
+            {
+                int vertexIndex = i - 4 - innerVertexCount;
+                float angleDegrees = -(360f / outerVertexCount * vertexIndex + outerPhaseDegrees);
+                positions[i] = GetPositionOnCircle(outerRadius, angleDegrees);
+            }
+
+            return positions;
         }
 
-        Vector2 pos(float radius, float degree)
+        private Vector2 GetPositionOnCircle(float radius, float angleDegrees)
         {
-            float rad = Mathf.Deg2Rad * degree;
-            return Quaternion.Euler(0,0,rad)*Vector3.up*radius;
+            return Quaternion.Euler(0f, 0f, angleDegrees) * Vector3.up * radius;
         }
 
-        private SpownPattern[] _spownPatterns;
+        private SpawnPattern[] _spawnPatterns;
         private float _timer;
         private int _currentPatternId = -1;
         private int _lastSpawnedEnemyId = -1;
@@ -97,11 +118,11 @@ namespace Gameplay
             PatternDefine();
 
             float previousTime = -1f;
-            foreach (SpownPattern pattern in _spownPatterns)
+            foreach (SpawnPattern pattern in _spawnPatterns)
             {
                 if (pattern.Time < previousTime)
                 {
-                    Debug.LogError("SpownPatterns are not in ascending order of time.", this);
+                    Debug.LogError("SpawnPatterns are not in ascending order of time.", this);
                 }
 
                 previousTime = pattern.Time;
@@ -110,18 +131,18 @@ namespace Gameplay
 
         private void PatternDefine()
         {
-            _spownPatterns = new[]
+            _spawnPatterns = new[]
             {
-                new SpownPattern
+                new SpawnPattern
                 {
                     Time = 1f,
                     EnemyType = "Basic",
                     Positions = new[] { new Vector2(0f, 4f) },
                     IsActive = false
                 },
-                new SpownPattern {
+                new SpawnPattern {
                     Time = 100f,
-                    EnemyType = "Boss_A",
+                    EnemyType = "Boss_A_core",
                     Positions = new[] { new Vector2(0f, 4f) },
                     IsActive = false
                     }
@@ -131,12 +152,12 @@ namespace Gameplay
 
         private void Update()
         {
-            manualTrigger2spown();
+            TriggerManualSpawn();
             _timer += Time.deltaTime;
 
-            for (int patternIndex = 0; patternIndex < _spownPatterns.Length; patternIndex++)
+            for (int patternIndex = 0; patternIndex < _spawnPatterns.Length; patternIndex++)
             {
-                SpownPattern pattern = _spownPatterns[patternIndex];
+                SpawnPattern pattern = _spawnPatterns[patternIndex];
                 if (pattern.IsActive || _timer < pattern.Time)
                 {
                     continue;
@@ -149,12 +170,12 @@ namespace Gameplay
                 }
 
                 pattern.IsActive = true;
-                _spownPatterns[patternIndex] = pattern;
+                _spawnPatterns[patternIndex] = pattern;
                 Debug.Log($"Spawning {pattern.EnemyType} at time {_timer}", this);
             }
         }
 
-        private void SpawnEnemy(string enemyType, Vector2 localPosition, int positionIndex)
+        private GameObject SpawnEnemy(string enemyType, Vector2 localPosition, int positionIndex)
         {
             _lastSpawnedEnemyId++;
             Vector2[] outlinePoints = GetPositionsForPattern(enemyType);
@@ -162,6 +183,18 @@ namespace Gameplay
             GameObject enemy = new GameObject($"{enemyType}_{positionIndex}");
             Init(enemy, outlinePoints);
             enemy.transform.localPosition = new Vector3(localPosition.x, localPosition.y, 0f);
+
+            switch (enemyType)
+            {
+                case "Boss_A_core":
+                    GameObject armor = SpawnEnemy("Boss_A_armor", localPosition, positionIndex);
+                    armor.transform.SetParent(enemy.transform, true);
+                    BossGlassComponent boss = enemy.AddComponent<BossGlassComponent>();
+                    boss.AddModule(armor, 3f);
+                    break;
+            }
+
+            return enemy;
         }
 
         public void Init(GameObject obj, Vector2[] outlinePoints)
@@ -202,9 +235,9 @@ namespace Gameplay
         {
             EnsurePatternsDefined();
             var builder = new System.Text.StringBuilder();
-            for (int i = 0; i < _spownPatterns.Length; i++)
+            for (int i = 0; i < _spawnPatterns.Length; i++)
             {
-                SpownPattern pattern = _spownPatterns[i];
+                SpawnPattern pattern = _spawnPatterns[i];
                 if (i > 0)
                 {
                     builder.AppendLine();
@@ -222,11 +255,11 @@ namespace Gameplay
         {
             EnsurePatternsDefined();
             float maximumArea = 0f;
-            for (int i = 0; i < _spownPatterns.Length; i++)
+            for (int i = 0; i < _spawnPatterns.Length; i++)
             {
                 maximumArea = Mathf.Max(
                     maximumArea,
-                    Mathf.Abs(CalculateSignedArea(GetPositionsForPattern(_spownPatterns[i].EnemyType))));
+                    Mathf.Abs(CalculateSignedArea(GetPositionsForPattern(_spawnPatterns[i].EnemyType))));
             }
             return maximumArea;
         }
@@ -246,7 +279,7 @@ namespace Gameplay
 
         private void EnsurePatternsDefined()
         {
-            if (_spownPatterns == null)
+            if (_spawnPatterns == null)
             {
                 PatternDefine();
             }
