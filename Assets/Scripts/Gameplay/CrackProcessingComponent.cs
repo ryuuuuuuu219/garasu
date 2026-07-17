@@ -36,6 +36,10 @@ namespace GlassShooter.Gameplay
         [SerializeField, Range(0.01f, 1f)] private float minimumVulnerabilityCostMultiplier = 0.1f;
         [SerializeField, Min(0f)] private float angleCostWeight = 1f;
 
+        [Header("Terminal Fragment Release")]
+        [SerializeField, Min(0f)] private float terminalFragmentMaximumArea = 0.5f;
+        [SerializeField, Min(0f)] private float anchorFailureEnergy;
+
         [Header("Boundary Completion")]
         [SerializeField, Min(0f)] private float boundaryCompletionDistance = 0.15f;
         [SerializeField, Min(1)] private int maxBoundaryCompletionCandidates = 3;
@@ -373,9 +377,9 @@ namespace GlassShooter.Gameplay
                 impactLocalPosition);
             Vector2 referenceDirection = ResolveReferenceDirection(startNode, bulletStatus.CurrentVelocity);
 
-            float impactEnergy = bulletStatus.CalculateKineticEnergy()
+            float newImpactEnergy = bulletStatus.CalculateKineticEnergy()
                 * bulletStatus.CrackConversionEfficiency;
-            impactEnergy += pooledImpactEnergy;
+            float impactEnergy = newImpactEnergy + pooledImpactEnergy;
             float scanRadius = CalculateScanRadius(impactEnergy);
 
             ResetImpactDebugData(impactLocalPosition, scanRadius);
@@ -387,8 +391,15 @@ namespace GlassShooter.Gameplay
 
             // 実際にクラック形成へ使われなかった分だけを、ガラス全体で次回へ持ち越す。
             // 候補がない場合や全候補が予算超過の場合は、全量がそのまま残る。
-            pooledImpactEnergy = ApplyCrackPathsWithinBudget(paths, impactEnergy);
+            pooledImpactEnergy = ApplyCrackPathsWithinBudget(
+                paths,
+                impactEnergy,
+                out bool crackProgressed);
             cracks = BuildRenderableCrackPaths();
+
+            AccumulateFailedImpactAndReleaseTerminalFragment(
+                crackProgressed,
+                newImpactEnergy);
 
             // ボス本体は蓄積破砕を前提とするため、着弾で縮小させない。
             // 分離後の通常破片にはBossGlassComponentを継承しないので、
@@ -455,6 +466,40 @@ namespace GlassShooter.Gameplay
             }
             RenderCracks();
             return true;
+        }
+
+        private void AccumulateFailedImpactAndReleaseTerminalFragment(
+            bool crackProgressed,
+            float newImpactEnergy)
+        {
+            if (crackProgressed ||
+                isReleasedFromAnchor ||
+                terminalFragmentMaximumArea <= 0f ||
+                !TryGetComponent(out GlassFragment _))
+            {
+                return;
+            }
+
+            float currentArea = Mathf.Abs(SignedArea(outline));
+            if (currentArea > terminalFragmentMaximumArea + GeometryEpsilon)
+            {
+                return;
+            }
+
+            // pooledImpactEnergyには過去の未使用分も含まれるため、二重計上を避けて
+            // 今回の着弾で新しく入った分だけを固定破壊エネルギーへ加える。
+            anchorFailureEnergy += Mathf.Max(0f, newImpactEnergy);
+            float releaseThreshold = glassStatus != null
+                ? glassStatus.FixedPositionStrength
+                : 1f;
+            if (anchorFailureEnergy + GeometryEpsilon < releaseThreshold)
+            {
+                return;
+            }
+
+            anchorFailureEnergy = 0f;
+            isReleasedFromAnchor = true;
+            ApplyAnchorState();
         }
 
         private static void ScalePoints(Vector2[] points, Vector2 center, float multiplier)
@@ -1430,10 +1475,12 @@ namespace GlassShooter.Gameplay
 
         private float ApplyCrackPathsWithinBudget(
             List<CrackPathCandidate> paths,
-            float impactEnergy)
+            float impactEnergy,
+            out bool crackProgressed)
         {
             paths.Sort((a, b) => a.totalFractureCost.CompareTo(b.totalFractureCost));
             float remainingEnergy = Mathf.Max(0f, impactEnergy);
+            crackProgressed = false;
 
             for (int i = 0; i < paths.Count; i++)
             {
@@ -1449,7 +1496,9 @@ namespace GlassShooter.Gameplay
                     continue;
                 }
 
+                int connectionCountBefore = crackConnections.Count;
                 CreateMissingConnections(path);
+                crackProgressed |= crackConnections.Count > connectionCountBefore;
                 remainingEnergy = Mathf.Max(0f, remainingEnergy - additionalCost);
             }
 
@@ -2003,6 +2052,8 @@ namespace GlassShooter.Gameplay
                 0.01f,
                 1f);
             angleCostWeight = Mathf.Max(0f, angleCostWeight);
+            terminalFragmentMaximumArea = Mathf.Max(0f, terminalFragmentMaximumArea);
+            anchorFailureEnergy = Mathf.Max(0f, anchorFailureEnergy);
             boundaryCompletionDistance = Mathf.Max(0f, boundaryCompletionDistance);
             maxBoundaryCompletionCandidates = Mathf.Max(1, maxBoundaryCompletionCandidates);
         }
@@ -2038,8 +2089,20 @@ namespace GlassShooter.Gameplay
             bool firstIsReleased = isReleasedFromAnchor || !firstIsLargest;
             bool secondIsReleased = isReleasedFromAnchor || firstIsLargest;
 
-            CreateFragment(firstRegion, 0, firstIsReleased);
-            CreateFragment(secondRegion, 1, secondIsReleased);
+            var fragments = new List<GameObject>(2);
+            GameObject firstFragment = CreateFragment(firstRegion, 0, firstIsReleased);
+            GameObject secondFragment = CreateFragment(secondRegion, 1, secondIsReleased);
+            if (firstFragment != null)
+            {
+                fragments.Add(firstFragment);
+            }
+            if (secondFragment != null)
+            {
+                fragments.Add(secondFragment);
+            }
+
+            BossGlassComponent boss = GetComponentInParent<BossGlassComponent>();
+            boss?.ReplaceModule(gameObject, fragments);
             Destroy(gameObject);
             return true;
         }
@@ -2429,7 +2492,7 @@ namespace GlassShooter.Gameplay
             return inside;
         }
 
-        private void CreateFragment(Vector2[] region, int pieceIndex, bool releasedFromAnchor)
+        private GameObject CreateFragment(Vector2[] region, int pieceIndex, bool releasedFromAnchor)
         {
             Vector2 centroid = CalculateCentroid(region);
             Vector2[] centeredRegion = new Vector2[region.Length];
@@ -2444,7 +2507,7 @@ namespace GlassShooter.Gameplay
             // 最小閾値以下の領域は破片Objectを作らず、その場で消滅扱いにする。
             if (fragmentArea <= minimumBreakableArea + GeometryEpsilon)
             {
-                return;
+                return null;
             }
             const bool canBreakAgain = true;
 
@@ -2543,6 +2606,8 @@ namespace GlassShooter.Gameplay
             ResourceUIManager.Instance?.ShowFragmentScore(
                 fragment,
                 fragmentStatus.resourceRewardArea);
+
+            return fragment;
         }
 
         private void CopyGrowthSettingsTo(CrackProcessingComponent target, int pieceIndex)
@@ -2555,6 +2620,7 @@ namespace GlassShooter.Gameplay
             target.maximumScanRadius = maximumScanRadius;
             target.minimumVulnerabilityCostMultiplier = minimumVulnerabilityCostMultiplier;
             target.angleCostWeight = angleCostWeight;
+            target.terminalFragmentMaximumArea = terminalFragmentMaximumArea;
             target.boundaryCompletionDistance = boundaryCompletionDistance;
             target.maxBoundaryCompletionCandidates = maxBoundaryCompletionCandidates;
         }

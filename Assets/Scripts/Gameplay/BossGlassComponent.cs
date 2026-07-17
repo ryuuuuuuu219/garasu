@@ -41,6 +41,44 @@ namespace GlassShooter.Gameplay
             modules.Add(new ModuleDetail(module, healingInterval));
         }
 
+        /// <summary>
+        /// 破砕で消滅するモジュールを、そこから生成された破片へ置き換えます。
+        /// 回復間隔と次の回復までの残り時間は元モジュールから引き継ぎます。
+        /// </summary>
+        public bool ReplaceModule(GameObject originalModule, IReadOnlyList<GameObject> fragments)
+        {
+            if (originalModule == null || fragments == null)
+            {
+                return false;
+            }
+
+            int originalIndex = modules.FindIndex(detail => detail.Module == originalModule);
+            if (originalIndex < 0)
+            {
+                return false;
+            }
+
+            ModuleDetail inheritedDetail = modules[originalIndex];
+            modules.RemoveAt(originalIndex);
+
+            int insertionIndex = originalIndex;
+            for (int fragmentIndex = 0; fragmentIndex < fragments.Count; fragmentIndex++)
+            {
+                GameObject fragment = fragments[fragmentIndex];
+                if (fragment == null)
+                {
+                    continue;
+                }
+
+                ModuleDetail fragmentDetail = inheritedDetail;
+                fragmentDetail.Module = fragment;
+                modules.Insert(insertionIndex, fragmentDetail);
+                insertionIndex++;
+            }
+
+            return true;
+        }
+
         private void Update()
         {
             for (int moduleIndex = modules.Count - 1; moduleIndex >= 0; moduleIndex--)

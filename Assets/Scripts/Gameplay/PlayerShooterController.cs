@@ -8,6 +8,7 @@ namespace GlassShooter.Gameplay
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(KeyboardInputState))]
+    [RequireComponent(typeof(Rigidbody2D))]
     public sealed class PlayerShooterController : MonoBehaviour
     {
         [Header("Movement")]
@@ -30,6 +31,7 @@ namespace GlassShooter.Gameplay
         [SerializeField, Range(0f, 1f)] private float gridAlpha = 1f;
 
         private KeyboardInputState inputState;
+        private Rigidbody2D playerRigidbody;
         private float nextFireTime;
         private LineRenderer lr;
         private PolygonCollider2D hitbox;
@@ -55,6 +57,12 @@ namespace GlassShooter.Gameplay
             mainCam = Camera.main;
 
             inputState = GetComponent<KeyboardInputState>();
+            playerRigidbody = GetComponent<Rigidbody2D>();
+            playerRigidbody.bodyType = RigidbodyType2D.Dynamic;
+            playerRigidbody.gravityScale = 0f;
+            playerRigidbody.constraints = RigidbodyConstraints2D.FreezeRotation;
+            playerRigidbody.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+            playerRigidbody.interpolation = RigidbodyInterpolation2D.Interpolate;
             CacheHitbox();
             CreateBackgroundGrid();
 
@@ -69,7 +77,6 @@ namespace GlassShooter.Gameplay
 
         private void Update()
         {
-            Move();
             RenderMovementLimit();
 
             if (inputState.SpaceDown && Time.time >= nextFireTime)
@@ -80,6 +87,11 @@ namespace GlassShooter.Gameplay
             Debug_impactFromMouse();
             chaseCamera();
 
+        }
+
+        private void FixedUpdate()
+        {
+            Move();
         }
 
         public Vector3 cameraCenter=Vector3.zero;
@@ -192,11 +204,11 @@ namespace GlassShooter.Gameplay
 
         private void Move()
         {
-            Vector3 position = transform.position;
-            position += (Vector3)inputState.ArrowDirection * moveSpeed * Time.deltaTime;
+            Vector2 position = playerRigidbody.position;
+            position += inputState.ArrowDirection * moveSpeed * Time.fixedDeltaTime;
             position.x = Mathf.Clamp(position.x, Movelimitmin.x, Movelimitmax.x);
             position.y = Mathf.Clamp(position.y, Movelimitmin.y, Movelimitmax.y);
-            transform.position = position;
+            playerRigidbody.MovePosition(position);
         }
 
         private void RenderMovementLimit()
