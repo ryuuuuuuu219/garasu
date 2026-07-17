@@ -5,9 +5,12 @@ using UnityEngine;
 namespace Gameplay
 {
     [AddComponentMenu("Scripts/Gameplay/Enemy Spawner")]
+    [RequireComponent(typeof(BossAppearanceManager))]
     internal class enemyspowner : MonoBehaviour
     {
         public GlassStatus glassStatus;
+
+        private BossAppearanceManager manager;
 
         private struct SpawnPattern
         {
@@ -115,6 +118,12 @@ namespace Gameplay
 
         private void Awake()
         {
+            manager = GetComponent<BossAppearanceManager>();
+            if (manager == null)
+            {
+                manager = gameObject.AddComponent<BossAppearanceManager>();
+            }
+
             PatternDefine();
 
             float previousTime = -1f;
@@ -191,6 +200,7 @@ namespace Gameplay
                     armor.transform.SetParent(enemy.transform, true);
                     BossGlassComponent boss = enemy.AddComponent<BossGlassComponent>();
                     boss.AddModule(armor, 3f);
+                    manager.apperdelay(enemy, armor);
                     break;
             }
 

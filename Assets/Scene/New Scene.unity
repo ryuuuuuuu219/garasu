@@ -221,7 +221,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 160, y: -76}
+  m_AnchoredPosition: {x: 160, y: -282}
   m_SizeDelta: {x: 200, y: 50}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &305961936
@@ -597,6 +597,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1132579638}
   - component: {fileID: 1132579637}
+  - component: {fileID: 1132579639}
   - component: {fileID: 1132579636}
   m_Layer: 0
   m_Name: GlassCalculationVerifier
@@ -630,7 +631,7 @@ MonoBehaviour:
     2.452\uFF080.1\uFF5E20\uFF09\r\n\u4EE3\u8868\u9577\u3055\u4EE5\u4E0A: False\r\n\u6761\u4EF6\u306F\u300E\u885D\u6483\u30A8\u30CD\u30EB\u30AE\u30FC
     >= \u57FA\u6E96\u7834\u58CA\u62B5\u6297\u300F\u3002\u5916\u5468\u5230\u9054\u306F\u5B9F\u4EA4\u70B9\u8DDD\u96E2\u3067\u5225\u5224\u5B9A\u3002\r\n\r\n\u3010\u6575\u30B9\u30DD\u30FC\u30F3\u3011\r\n\u73FE\u5728\u30D1\u30BF\u30FC\u30F3ID:
     -1\r\n\u6700\u7D42\u751F\u6210\u6575ID: -1\r\n\u69CB\u6210:\r\n[0] t=1 type=Basic
-    count=1 active=False\r\n[1] t=100 type=Boss_A count=1 active=False\r\n\u6700\u5927\u30B1\u30FC\u30B9\u7834\u7247\u6570\uFF08\u9762\u7A4D\u306B\u3088\u308B\u7406\u8AD6\u4E0A\u9650\uFF09:
+    count=1 active=False\r\n[1] t=100 type=Boss_A_core count=1 active=False\r\n\u6700\u5927\u30B1\u30FC\u30B9\u7834\u7247\u6570\uFF08\u9762\u7A4D\u306B\u3088\u308B\u7406\u8AD6\u4E0A\u9650\uFF09:
     599\r\n\r\n\u3010\u6210\u9577\u4E88\u5B9A\u30FB\u8ABF\u6574\u5BFE\u8C61\u3011\r\n\u30D7\u30EC\u30A4\u30E4\u30FC\u79FB\u52D5\u901F\u5EA6:
     7\r\n\u79FB\u52D5\u7BC4\u56F2: (-15.00, -8.50) \uFF5E (15.00, 8.50)\r\n\u5B9F\u767A\u5C04\u9593\u9694:
     0.16\r\n\u767A\u5C04\u30EC\u30FC\u30C8: 6.25\r\n\u540C\u6642\u767A\u5C04\u6570:
@@ -671,6 +672,36 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1132579639
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1132579635}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8de0f617126e42a6aca1a88392aa9e70, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::Gameplay.BossAppearanceManager
+  warningMessage: "//\u8B66\u544A//\n\u30DC\u30B9\u51FA\u73FE\n\n\u30E2\u30C7\u30EB\u30B1\u30FC\u30B9*A\n\u56DE\u5FA9\u30B3\u30A2\n\n\u6A5F\u80FD\u89E3\u6790\u2026\u2026\n\u30FB\u4E0D\u53EF\u4FB5\u9818\u57DF\u5F62\u6210\n\u30FB\u56DE\u5FA9\u80FD\u529B\n\n\u30AB\u30A6\u30F3\u30C8\u30C0\u30A6\u30F3\u958B\u59CB\u2026\u2026"
+  japaneseFont: {fileID: 11400000, guid: dd6aad516e1d75f4d9398e16061a4f37, type: 2}
+  warningDuration: 2.5
+  panelTransitionDuration: 0.8
+  convergenceDuration: 1.5
+  typewriterCharactersPerSecond: 28
+  countdownTickPulseDuration: 0.22
+  urgencyThresholdSeconds: 5
+  warningPanelWidth: 650
+  warningLineHeight: 42
+  warningVerticalPadding: 60
+  minimumWarningPanelHeight: 180
+  maximumWarningPanelHeight: 900
+  ringCount: 4
+  ringStartRadius: 6
+  ringSpacing: 1.2
+  ringWidth: 0.05
+  ringSegments: 64
 --- !u!4 &1140903254 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 6224997703100826227, guid: 866fa5d2bfac9724c97bff7f235e45b6, type: 3}
