@@ -1,0 +1,314 @@
+# ガラスの防御性能パラメーター方針
+
+更新日: 2026-07-22
+
+敵の亀裂に対する防御性能は、次の項目だけで決定する方向とする。
+
+・enemyCrackEnergyCutRate
+・baseFractureResistance（実装済み、廃止予定）
+・virtualPointCount
+・maximumScanRadius
+
+baseFractureResistance廃止後の最終構成は、実質的に次の3項目になる。
+
+・enemyCrackEnergyCutRate
+・virtualPointCount
+・maximumScanRadius
+
+その他のGlassStatusおよびCrackProcessingComponentの値は、亀裂形状、物理挙動、固定状態、破片消滅条件などの設定として扱い、敵の基本防御力を決める項目には含めない。
+
+---
+
+## 1. enemyCrackEnergyCutRate
+
+状態: 最有力の新規実装候補
+
+名称:
+敵側クラックエネルギーカット率
+
+想定範囲:
+0～1
+
+計算:
+
+弾側変換後エネルギー
+= 0.5 × 弾質量 × 現在速度^2 × crackConversionEfficiency
+
+敵側補正後エネルギー
+= 弾側変換後エネルギー × (1 - enemyCrackEnergyCutRate)
+
+例:
+
+・0ならカットなし
+・0.25なら25%カット
+・0.5なら50%カット
+・1ならクラック用エネルギーを完全に無効化
+
+防御への作用:
+
+・高いほど敵の防御力が高い
+・走査半径へ渡るエネルギーを減らす
+・クラック接続へ使用できる予算を減らす
+・pooledImpactEnergyへ残るエネルギーも補正後の値にする
+・小破片のanchorFailureEnergyにも補正後の値だけを加える
+
+対象外:
+
+・ContactSizeMultiplierによる着弾縮小
+・弾の物理速度
+・破片へ与える物理速度
+
+オーバーキル時:
+
+・最初の着弾時に一回だけ適用する
+・分離後は補正済み残余エネルギーを破片へ渡す
+・同一着弾の連鎖中に破片ごとに再適用しない
+
+この値を、敵防御力の中心となる割合パラメーターにする。
+
+---
+
+## 2. baseFractureResistance
+
+状態: 実装済み、廃止予定
+
+現在値:
+1
+
+現在の作用:
+
+走査半径
+= sqrt(ガラス面積)
+× sqrt(衝撃エネルギー / baseFractureResistance)
+
+接続コスト
+= baseFractureResistance
+× 距離
+× 脆弱性補正
+× 角度補正
+
+廃止理由:
+
+・敵側エネルギーカット率と防御上の役割が重複する
+・走査半径と接続コストの両方へ作用し、調整結果を直感的に把握しにくい
+・倍率防御と割合カットが併存すると、防御値の責任範囲が分かりにくくなる
+・敵ごとの防御性能をenemyCrackEnergyCutRateへ集約した方が比較しやすい
+
+廃止後の想定:
+
+走査半径
+= sqrt(ガラス面積) × sqrt(敵側補正後エネルギー)
+
+接続コスト
+= 距離 × 脆弱性補正 × 角度補正
+
+移行手順:
+
+1. 全生成ガラスでbaseFractureResistanceを1に固定する
+2. enemyCrackEnergyCutRateを追加する
+3. 既存バランスをenemyCrackEnergyCutRateへ移す
+4. 走査半径計算からbaseFractureResistanceの除算を外す
+5. 接続コスト計算からbaseFractureResistanceの乗算を外す
+6. Inspector、プロパティ、コピー処理、検算表示から削除する
+7. GrowthStatId.GlassFractureResistanceも削除または置換する
+
+移行期間中に両方を同時強化すると防御補正が二重になるため、baseFractureResistanceは1固定とする。
+
+---
+
+## 3. virtualPointCount
+
+状態: 実装済み
+
+現在値:
+32
+
+役割:
+
+・ガラス内部に生成する仮想亀裂点の数を決める
+・一次候補と二次候補の密度を決める
+・亀裂が内部で進める経路数と分岐数を変える
+
+一般的な傾向:
+
+少ない場合:
+
+・内部候補が少ない
+・亀裂が途中で止まりやすい
+・短い低コスト接続を作りにくい
+・通常候補がないため、仮想外周点フォールバックへ進みやすくなる場合がある
+
+多い場合:
+
+・内部候補が多い
+・短い低コスト接続を段階的に作りやすい
+・分岐しやすい
+・内部へエネルギーを消費する経路も増える
+
+重要:
+
+virtualPointCountは、値を上げれば必ず防御力が上がる、または下げれば必ず防御力が上がるパラメーターではない。
+
+少なすぎる場合は通常候補がなくなり、十分なエネルギーを持つ弾が進行方向の外周へ直接フォールバックして、早く外周間経路を完成させる可能性がある。
+
+したがって、これは純粋な防御倍率ではなく「内部クラック経路密度」として扱う。
+敵ランクごとに試験済みの段階値を設定し、単独で連続的な防御値へ換算しない。
+
+想定する段階例:
+
+・低密度: 16
+・標準密度: 32
+・高密度: 48
+
+数値は仮置きであり、ガラス面積ごとの実測で決定する。
+
+---
+
+## 4. maximumScanRadius
+
+状態: 実装済み
+
+現在値:
+20
+
+役割:
+
+・一回の着弾で候補走査に使用できる最大距離を制限する
+・衝撃エネルギーが非常に大きい場合の走査距離上限になる
+
+防御への作用:
+
+・小さいほど敵の防御力が高い
+・高エネルギー弾でも遠い内部点へ一度に届きにくくなる
+・進行方向の外周へ一度に到達しにくくなる
+・複数回の着弾と既存先端からの再成長が必要になりやすい
+
+注意:
+
+・衝撃エネルギーそのものは減らさない
+・使われなかったエネルギーはpooledImpactEnergyへ残る
+・値を小さくしても、連射による蓄積と再成長までは無効化しない
+・ガラス形状の大きさが違う場合、同じ絶対値でも実質的な防御効果が変わる
+
+必要なら将来、絶対距離ではなくガラス代表長さに対する倍率へ変更する余地がある。
+
+---
+
+## 5. 最終的な防御構成
+
+### enemyCrackEnergyCutRate
+
+担当:
+一発ごとの有効エネルギー量
+
+高いほど防御的。
+
+### virtualPointCount
+
+担当:
+内部クラック経路の密度と分岐構造
+
+防御力との関係は単調ではないため、試験済みプリセットで扱う。
+
+### maximumScanRadius
+
+担当:
+一回の着弾で亀裂が到達できる最大距離
+
+小さいほど防御的。
+
+### baseFractureResistance
+
+担当:
+移行期間中だけ既存計算を維持する。
+
+最終的には廃止し、1固定を経てコードから削除する。
+
+---
+
+## 6. 敵タイプの設定例
+
+数値は設計例であり、実測前の仮値。
+
+標準ガラス:
+
+・enemyCrackEnergyCutRate = 0
+・virtualPointCount = 32
+・maximumScanRadius = 20
+
+耐衝撃ガラス:
+
+・enemyCrackEnergyCutRate = 0.3
+・virtualPointCount = 32
+・maximumScanRadius = 12
+
+緻密ガラス:
+
+・enemyCrackEnergyCutRate = 0.15
+・virtualPointCount = 48
+・maximumScanRadius = 16
+
+疎構造ガラス:
+
+・enemyCrackEnergyCutRate = 0.15
+・virtualPointCount = 16
+・maximumScanRadius = 12
+
+ボス装甲:
+
+・enemyCrackEnergyCutRate = 0.5
+・virtualPointCount = 48
+・maximumScanRadius = 8
+
+virtualPointCountによる結果は形状と外周フォールバックの影響を受けるため、名称上の強弱だけで確定しない。
+
+---
+
+## 7. 防御性能から除外する項目
+
+次の項目は、敵の基本防御力を決める値としては使用しない。
+
+・minimumInitialVulnerability
+・maximumInitialVulnerability
+・minimumVulnerabilityCostMultiplier
+・angleCostWeight
+・surfaceFlawMinimumSpacing
+・crackTipDetectionRadius
+・boundaryCompletionDistance
+・fixedPositionStrength
+・minimumBreakableArea
+・thickness
+・density
+・mass
+・elasticity
+
+これらを廃止するという意味ではない。
+用途は次のように限定する。
+
+・亀裂模様と方向性
+・表面傷の再利用範囲
+・外周到達判定の許容誤差
+・固定破片の解除条件
+・破片の消滅条件
+・破片の物理挙動
+
+敵の防御ランクや耐久度を比較する際は、これらを防御値として数えない。
+
+---
+
+## 8. 方針の短いまとめ
+
+敵防御の主値:
+enemyCrackEnergyCutRate
+
+亀裂構造:
+virtualPointCount
+
+一撃の到達上限:
+maximumScanRadius
+
+廃止対象:
+baseFractureResistance
+
+この構成により、エネルギー防御、内部構造、到達距離を分離して調整する。
+
