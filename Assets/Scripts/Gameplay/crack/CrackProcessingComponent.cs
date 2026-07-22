@@ -36,7 +36,6 @@ namespace GlassShooter.Gameplay
         [SerializeField] private int crackRandomSeed = 12345;
         [SerializeField, Min(0f)] private float surfaceFlawMinimumSpacing = 1.2f;
         [SerializeField, Min(0f)] private float crackTipDetectionRadius = 1.2f;
-        [SerializeField, Min(0.0001f)] private float baseFractureResistance = 1f;
         [SerializeField, Min(0f)] private float minimumScanRadius = 0.1f;
         [SerializeField, Min(0f)] private float maximumScanRadius = 20f;
         [SerializeField, Range(0.01f, 1f)] private float minimumVulnerabilityCostMultiplier = 0.1f;
@@ -56,6 +55,7 @@ namespace GlassShooter.Gameplay
         private bool crackGraphInitialized;
         private bool isReleasedFromAnchor;
         private bool isSeparating;
+        [SerializeField, HideInInspector] private bool overkillEvaluationConsumed;
 
         // 選択中オブジェクトのGizmo表示にだけ使用する直近着弾の診断情報。
         private readonly List<DebugLine> debugPrimaryCandidates = new List<DebugLine>();
@@ -76,7 +76,6 @@ namespace GlassShooter.Gameplay
         public Vector2[] Outline => (Vector2[])outline.Clone();
         public Vector2[] InitialCrackPoints => (Vector2[])initCrackPoint.Clone();
         public IReadOnlyList<Vector2[]> Cracks => cracks;
-        public float BaseFractureResistance => baseFractureResistance;
         public float MinimumScanRadius => minimumScanRadius;
         public float MaximumScanRadius => maximumScanRadius;
         public CrackGrowthComponent GrowthComponent => growthComponent;

@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 namespace Gameplay
@@ -112,9 +113,16 @@ namespace Gameplay
             yield return ConvergeRings(appearancePosition);
 
             SetTargetsActive(targets, true);
-            activeTargets = null;
 
             yield return RunCountdown();
+
+            bool hasSurvivingTarget = HasSurvivingTarget(activeTargets);
+            activeTargets = null;
+            if (hasSurvivingTarget)
+            {
+                LoadGrowthScene();
+                yield break;
+            }
 
             uiRoot.SetActive(false);
             activePresentation = null;
@@ -484,6 +492,37 @@ namespace Gameplay
                     target.SetActive(isActive);
                 }
             }
+        }
+
+        private static bool HasSurvivingTarget(GameObject[] targets)
+        {
+            if (targets == null || targets.Length == 0)
+            {
+                return false;
+            }
+
+            foreach (GameObject target in targets)
+            {
+                if (target != null)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private void LoadGrowthScene()
+        {
+            if (!Application.CanStreamedLevelBeLoaded(GrowthSceneController.SceneName))
+            {
+                Debug.LogError(
+                    $"Build Settingsに '{GrowthSceneController.SceneName}' が登録されていません。",
+                    this);
+                return;
+            }
+
+            SceneManager.LoadScene(GrowthSceneController.SceneName);
         }
 
         private void CancelCurrentPresentation()

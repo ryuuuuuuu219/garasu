@@ -39,6 +39,7 @@ namespace GlassShooter.Gameplay
         [SerializeField, Range(0f, 1f)] private float minimumInitialVulnerability;
         [SerializeField, Range(0f, 1f)] private float maximumInitialVulnerability = 1f;
         [SerializeField, Min(0)] private int virtualPointCount = 32;
+        [SerializeField, Range(0f, 1f)] private float enemyCrackEnergyCutRate;
 
         [Header("Structure")]
         [SerializeField] private GlassOutlineShape outlineShape = GlassOutlineShape.Rectangle;
@@ -63,6 +64,7 @@ namespace GlassShooter.Gameplay
         public float MinimumInitialVulnerability => minimumInitialVulnerability;
         public float MaximumInitialVulnerability => maximumInitialVulnerability;
         public int VirtualPointCount => virtualPointCount;
+        public float EnemyCrackEnergyCutRate => enemyCrackEnergyCutRate;
         public GlassOutlineShape OutlineShape => outlineShape;
         public Vector2[] FixedPositions => (Vector2[])fixedPositions.Clone();
         public Vector2 CorePosition => corePosition;
@@ -91,7 +93,8 @@ namespace GlassShooter.Gameplay
             float newFixedPositionStrength,
             float newFragmentAttackMultiplier,
             float newFragmentFallSpeedMultiplier,
-            float newMinimumBreakableArea)
+            float newMinimumBreakableArea,
+            float newEnemyCrackEnergyCutRate = 0f)
         {
             thickness = Mathf.Max(0.0001f, newThickness);
             density = Mathf.Max(0.0001f, newDensity);
@@ -110,6 +113,7 @@ namespace GlassShooter.Gameplay
             fragmentAttackMultiplier = Mathf.Max(0f, newFragmentAttackMultiplier);
             fragmentFallSpeedMultiplier = Mathf.Max(0f, newFragmentFallSpeedMultiplier);
             minimumBreakableArea = Mathf.Max(0f, newMinimumBreakableArea);
+            enemyCrackEnergyCutRate = Mathf.Clamp01(newEnemyCrackEnergyCutRate);
         }
 
         /// <summary>面積から、厚さと密度を反映した破片質量を求めます。</summary>
@@ -159,6 +163,87 @@ namespace GlassShooter.Gameplay
             return result;
         }
 
+        /// <summary>実際の外周内に、指定数の仮想点を再現可能な形で生成します。</summary>
+        public InitialCrackPointData[] GenerateInitialCrackPointData(
+            Vector2[] outline,
+            int seed)
+        {
+            int count = virtualPointCount > 0 ? virtualPointCount : initialCrackCount;
+            if (count <= 0 || outline == null || outline.Length < 3)
+            {
+                return Array.Empty<InitialCrackPointData>();
+            }
+
+            Vector2 minimum = outline[0];
+            Vector2 maximum = outline[0];
+            for (int i = 1; i < outline.Length; i++)
+            {
+                minimum = Vector2.Min(minimum, outline[i]);
+                maximum = Vector2.Max(maximum, outline[i]);
+            }
+
+            var result = new InitialCrackPointData[count];
+            var random = new System.Random(seed);
+            float minVulnerability = Mathf.Min(minimumInitialVulnerability, maximumInitialVulnerability);
+            float maxVulnerability = Mathf.Max(minimumInitialVulnerability, maximumInitialVulnerability);
+            int generatedCount = 0;
+            int attempts = 0;
+            int maximumAttempts = Mathf.Max(1024, count * 256);
+            while (generatedCount < count && attempts++ < maximumAttempts)
+            {
+                Vector2 candidate = new Vector2(
+                    Mathf.Lerp(minimum.x, maximum.x, (float)random.NextDouble()),
+                    Mathf.Lerp(minimum.y, maximum.y, (float)random.NextDouble()));
+                if (!IsPointInsidePolygon(candidate, outline))
+                {
+                    continue;
+                }
+
+                result[generatedCount++] = new InitialCrackPointData
+                {
+                    localPosition = candidate,
+                    vulnerability = Mathf.Lerp(
+                        minVulnerability,
+                        maxVulnerability,
+                        (float)random.NextDouble())
+                };
+            }
+
+            // 極端に細いポリゴンでも個数契約を破らない。生成済み内部点を再利用し、
+            // 1点も得られない退化形状だけは外周頂点を安全な最終手段とする。
+            Vector2 fallback = generatedCount > 0 ? result[0].localPosition : outline[0];
+            while (generatedCount < count)
+            {
+                result[generatedCount++] = new InitialCrackPointData
+                {
+                    localPosition = fallback,
+                    vulnerability = Mathf.Lerp(
+                        minVulnerability,
+                        maxVulnerability,
+                        (float)random.NextDouble())
+                };
+            }
+            return result;
+        }
+
+        private static bool IsPointInsidePolygon(Vector2 point, Vector2[] polygon)
+        {
+            bool inside = false;
+            for (int i = 0, j = polygon.Length - 1; i < polygon.Length; j = i++)
+            {
+                Vector2 a = polygon[i];
+                Vector2 b = polygon[j];
+                bool crosses = (a.y > point.y) != (b.y > point.y) &&
+                    point.x < (b.x - a.x) * (point.y - a.y) /
+                    (b.y - a.y) + a.x;
+                if (crosses)
+                {
+                    inside = !inside;
+                }
+            }
+            return inside;
+        }
+
         /// <summary>Spawnerなどに置いたテンプレート設定を生成済みガラスへコピーします。</summary>
         public void CopyFrom(GlassStatus source)
         {
@@ -176,6 +261,7 @@ namespace GlassShooter.Gameplay
             minimumInitialVulnerability = source.minimumInitialVulnerability;
             maximumInitialVulnerability = source.maximumInitialVulnerability;
             virtualPointCount = source.virtualPointCount;
+            enemyCrackEnergyCutRate = source.enemyCrackEnergyCutRate;
             outlineShape = source.outlineShape;
             fixedPositions = source.fixedPositions == null
                 ? Array.Empty<Vector2>()
@@ -196,6 +282,7 @@ namespace GlassShooter.Gameplay
             elasticity = Mathf.Max(0f, elasticity);
             initialCrackCount = Mathf.Max(0, initialCrackCount);
             virtualPointCount = Mathf.Max(0, virtualPointCount);
+            enemyCrackEnergyCutRate = Mathf.Clamp01(enemyCrackEnergyCutRate);
             minimumBreakableArea = Mathf.Max(0f, minimumBreakableArea);
             minimumInitialVulnerability = Mathf.Clamp01(minimumInitialVulnerability);
             maximumInitialVulnerability = Mathf.Clamp01(maximumInitialVulnerability);

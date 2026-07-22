@@ -136,14 +136,31 @@ namespace GlassShooter.Gameplay
             Debug.Log("1");
 
             EnsureCrackGraphInitialized();
+            float enemyEnergyMultiplier = glassStatus != null
+                ? 1f - glassStatus.EnemyCrackEnergyCutRate
+                : 1f;
+            float newImpactEnergy = bulletStatus.CalculateKineticEnergy()
+                * bulletStatus.CrackConversionEfficiency
+                * enemyEnergyMultiplier;
+
+            // オーバーキルは、このCrackProcessingComponentが受けた最初の有効攻撃だけで判定する。
+            // 判定失敗も消費扱いとし、蓄積エネルギーは一切含めない。
+            if (!overkillEvaluationConsumed)
+            {
+                overkillEvaluationConsumed = true;
+                Vector2 overkillImpact = GetClosestPointOnOutline(impactLocalPosition);
+                if (TryHandleFirstImpactOverkill(overkillImpact, newImpactEnergy))
+                {
+                    return;
+                }
+            }
+
             CrackNode surfaceFlaw = FindOrCreateSurfaceFlaw(impactLocalPosition);
             CrackNode startNode = FindCrackTipFromSurfaceRootOrFallback(
                 surfaceFlaw,
                 impactLocalPosition);
             Vector2 referenceDirection = ResolveReferenceDirection(startNode, bulletStatus.CurrentVelocity);
 
-            float newImpactEnergy = bulletStatus.CalculateKineticEnergy()
-                * bulletStatus.CrackConversionEfficiency;
             float impactEnergy = newImpactEnergy + pooledImpactEnergy;
             float scanRadius = CalculateScanRadius(impactEnergy);
 

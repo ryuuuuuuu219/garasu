@@ -76,21 +76,18 @@ namespace Gameplay
             float minimumImpactEnergy = CalculateConvertedEnergy(
                 sourceBullet.Mass,
                 actualSpeed,
-                sourceBullet.CrackConversionEfficiency);
+                sourceBullet.CrackConversionEfficiency,
+                glass.EnemyCrackEnergyCutRate);
 
             float maximumArea = spawner.CalculateMaximumPatternArea();
             float characteristicLength = Mathf.Sqrt(maximumArea);
-            float resistance = crackSettingsSource != null
-                ? crackSettingsSource.BaseFractureResistance
-                : 1f;
             float minimumRadius = crackSettingsSource != null
                 ? crackSettingsSource.MinimumScanRadius
                 : 0.1f;
             float maximumRadius = crackSettingsSource != null
                 ? crackSettingsSource.MaximumScanRadius
                 : 20f;
-            float rawScanRadius = characteristicLength * Mathf.Sqrt(
-                minimumImpactEnergy / Mathf.Max(resistance, 0.0001f));
+            float rawScanRadius = characteristicLength * Mathf.Sqrt(minimumImpactEnergy);
             float appliedScanRadius = Mathf.Clamp(rawScanRadius, minimumRadius, maximumRadius);
             int maximumFragments = spawner.CalculateMaximumFragmentUpperBound(
                 glass.MinimumBreakableArea);
@@ -101,6 +98,7 @@ namespace Gameplay
                 .AppendLine($"質量: {sourceBullet.Mass:0.###}")
                 .AppendLine($"Projectile実移動速度: {actualSpeed:0.###}")
                 .AppendLine($"変換効率: {sourceBullet.CrackConversionEfficiency:0.###}")
+                .AppendLine($"敵側カット率: {glass.EnemyCrackEnergyCutRate:0.###}")
                 .AppendLine($"最小位置Y: {(player != null ? player.MoveLimitMin.y : 0f):0.###}")
                 .AppendLine($"最小着弾エネルギー: {minimumImpactEnergy:0.###}（現在は等速なのでY非依存）");
 
@@ -108,11 +106,10 @@ namespace Gameplay
                 .AppendLine("【走査半径】")
                 .AppendLine($"最大ガラス面積: {maximumArea:0.###}")
                 .AppendLine($"面積平方根（代表長さ）: {characteristicLength:0.###}")
-                .AppendLine($"基準破壊抵抗: {resistance:0.###}")
                 .AppendLine($"未クランプ走査半径: {rawScanRadius:0.###}")
                 .AppendLine($"適用走査半径: {appliedScanRadius:0.###}（{minimumRadius:0.###}～{maximumRadius:0.###}）")
-                .AppendLine($"代表長さ以上: {minimumImpactEnergy + 0.0001f >= resistance}")
-                .AppendLine("条件は『衝撃エネルギー >= 基準破壊抵抗』。外周到達は実交点距離で別判定。")
+                .AppendLine($"代表長さ以上: {minimumImpactEnergy + 0.0001f >= 1f}")
+                .AppendLine("走査半径は sqrt(面積) × sqrt(カット後衝撃エネルギー)。外周到達は実交点距離で別判定。")
                 .AppendLine()
                 .AppendLine("【敵スポーン】")
                 .AppendLine($"現在パターンID: {spawner.CurrentPatternId}")
@@ -149,9 +146,14 @@ namespace Gameplay
             environment ??= FindAnyObjectByType<EnvironmentManager>();
         }
 
-        private static float CalculateConvertedEnergy(float mass, float speed, float efficiency)
+        private static float CalculateConvertedEnergy(
+            float mass,
+            float speed,
+            float efficiency,
+            float enemyCutRate)
         {
-            return 0.5f * Mathf.Max(0f, mass) * speed * speed * Mathf.Clamp01(efficiency);
+            return 0.5f * Mathf.Max(0f, mass) * speed * speed *
+                Mathf.Clamp01(efficiency) * (1f - Mathf.Clamp01(enemyCutRate));
         }
     }
 }

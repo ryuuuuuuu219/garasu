@@ -323,7 +323,7 @@ namespace GlassShooter.Gameplay
             float alignment = (Vector2.Dot(referenceDirection, candidateDirection) + 1f) * 0.5f;
             float angleMultiplier = 1f + angleCostWeight * (1f - alignment);
 
-            return baseFractureResistance * distance * vulnerabilityMultiplier * angleMultiplier;
+            return distance * vulnerabilityMultiplier * angleMultiplier;
         }
 
         private void AddOuterBoundaryAngleMarkers(

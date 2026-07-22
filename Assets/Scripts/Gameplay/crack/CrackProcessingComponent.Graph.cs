@@ -23,10 +23,8 @@ namespace GlassShooter.Gameplay
             if ((initCrackPoint == null || initCrackPoint.Length == 0) &&
                 glassStatus != null && outline.Length >= 3)
             {
-                GetOutlineSize(out float width, out float height);
                 InitialCrackPointData[] generated = glassStatus.GenerateInitialCrackPointData(
-                    width,
-                    height,
+                    outline,
                     crackRandomSeed);
                 var validPositions = new List<Vector2>(generated.Length);
                 for (int i = 0; i < generated.Length; i++)
@@ -90,8 +88,7 @@ namespace GlassShooter.Gameplay
                         AddConnection(
                             from,
                             to,
-                            Mathf.Max(GeometryEpsilon, Vector2.Distance(from.localPosition, to.localPosition)
-                                * baseFractureResistance));
+                            Mathf.Max(GeometryEpsilon, Vector2.Distance(from.localPosition, to.localPosition)));
                     }
                 }
             }
@@ -304,8 +301,7 @@ namespace GlassShooter.Gameplay
         private float CalculateScanRadius(float impactEnergy)
         {
             float glassArea = Mathf.Abs(SignedArea(outline));
-            float resistance = Mathf.Max(baseFractureResistance, GeometryEpsilon);
-            float energyRatio = Mathf.Max(0f, impactEnergy / resistance);
+            float energyRatio = Mathf.Max(0f, impactEnergy);
 
             // 面積の平方根とエネルギー比の平方根から一次走査距離を得る。
             float scanRadius = Mathf.Sqrt(glassArea) * Mathf.Sqrt(energyRatio);

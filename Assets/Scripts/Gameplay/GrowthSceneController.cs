@@ -11,6 +11,7 @@ namespace GlassShooter.Gameplay
     [DisallowMultipleComponent]
     public sealed class GrowthSceneController : MonoBehaviour
     {
+        public const string SceneName = "Growth Scene";
         private const string GameplaySceneName = "New Scene";
 
         private sealed class RowView

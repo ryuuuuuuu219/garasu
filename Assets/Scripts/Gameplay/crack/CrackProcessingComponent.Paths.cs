@@ -578,7 +578,6 @@ namespace GlassShooter.Gameplay
         {
             surfaceFlawMinimumSpacing = Mathf.Max(0f, surfaceFlawMinimumSpacing);
             crackTipDetectionRadius = Mathf.Max(0f, crackTipDetectionRadius);
-            baseFractureResistance = Mathf.Max(0.0001f, baseFractureResistance);
             minimumScanRadius = Mathf.Max(0f, minimumScanRadius);
             maximumScanRadius = Mathf.Max(minimumScanRadius, maximumScanRadius);
             minimumVulnerabilityCostMultiplier = Mathf.Clamp(

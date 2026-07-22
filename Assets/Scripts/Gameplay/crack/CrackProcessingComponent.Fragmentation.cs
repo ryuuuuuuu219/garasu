@@ -564,7 +564,8 @@ namespace GlassShooter.Gameplay
             target.crackRandomSeed = unchecked(crackRandomSeed * 397 + pieceIndex + 1);
             target.surfaceFlawMinimumSpacing = surfaceFlawMinimumSpacing;
             target.crackTipDetectionRadius = crackTipDetectionRadius;
-            target.baseFractureResistance = baseFractureResistance;
+            // 破片は元オブジェクトの初回判定後に生まれるため、再度オーバーキル判定しない。
+            target.overkillEvaluationConsumed = true;
             target.minimumScanRadius = minimumScanRadius;
             target.maximumScanRadius = maximumScanRadius;
             target.minimumVulnerabilityCostMultiplier = minimumVulnerabilityCostMultiplier;

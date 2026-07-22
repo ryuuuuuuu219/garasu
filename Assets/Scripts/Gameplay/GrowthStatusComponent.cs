@@ -34,7 +34,7 @@ namespace GlassShooter.Gameplay
         PlayerEnvironmentGravity,
         GlassSurfaceFlawMinimumSpacing,
         GlassCrackMaximumSize,
-        GlassFractureResistance,
+        GlassCrackEnergyCutRate,
         Count
     }
 
@@ -105,7 +105,7 @@ namespace GlassShooter.Gameplay
             new(GrowthStatId.PlayerEnvironmentGravity, "プレイヤー強化", "環境・重力強化", 0.06f, 0.02f, 20, 3),
             new(GrowthStatId.GlassSurfaceFlawMinimumSpacing, "ガラス強化", "表面傷間隔強化", 1.2f, -0.05f, 20, 3),
             new(GrowthStatId.GlassCrackMaximumSize, "ガラス強化", "亀裂の最大の大きさ強化", 1.2f, 0.1f, 20, 3),
-            new(GrowthStatId.GlassFractureResistance, "ガラス強化", "亀裂抵抗値強化", 1f, -0.04f, 20, 4)
+            new(GrowthStatId.GlassCrackEnergyCutRate, "ガラス強化", "敵側亀裂エネルギーカット率", 0f, 0.04f, 20, 4)
         };
 
         /// <summary>強化画面に表示するカテゴリと項目の順序です。</summary>

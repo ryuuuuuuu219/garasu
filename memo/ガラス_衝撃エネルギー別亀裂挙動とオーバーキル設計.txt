@@ -958,6 +958,98 @@ E_triangle > 約203.916595
 
 ---
 
+## 27. 実装責務の確定
+
+### 27.1 オーバーキル判定状態はオブジェクト単位
+
+「オーバーキル判定済み」は敵ルートやボス全体で共有しない。
+
+各CrackProcessingComponentを持つGameObjectが、自分専用の状態を保持する。
+
+状態候補:
+
+overkillEvaluationConsumed
+
+意味:
+
+・false: このオブジェクトはまだ最初の有効攻撃を受けていない
+・true: このオブジェクトではオーバーキル判定を既に一回行った
+
+挙動:
+
+・Basic一個体は自分専用の判定状態を持つ
+・ボス装甲やボスモジュールも、それぞれ独立した判定状態を持つ
+・あるモジュールへの攻撃で、別モジュールの判定権を消費しない
+・敵ルート用の共有コンポーネントは作らない
+・enemyspownerやBossAppearanceManagerで共有判定を管理しない
+
+通常破砕またはオーバーキルで生成した破片は、元オブジェクトの判定済み状態trueをコピーする。
+破片は新しいGameObjectではあるが、新しい敵個体とは扱わず、同じ破砕系統内でオーバーキルを再判定しない。
+
+### 27.2 仮想点生成はGlassStatusの責務
+
+仮想点数、脆弱性範囲、乱数による初期点生成はGlassStatusへ集約する。
+
+現在GlassStatusに存在するもの:
+
+・virtualPointCount
+・minimumInitialVulnerability
+・maximumInitialVulnerability
+・GenerateInitialCrackPointData()
+
+変更方針:
+
+・初回攻撃判定前に必要な仮想点生成処理をGlassStatus側の公開メソッドへまとめる
+・outlineとseedを受け取り、外周内の有効なInitialCrackPointDataを返す
+・必要ならoutlineの幅と高さの算出もGlassStatus側へ移す
+・必要なら点がoutline内部または外周上にあるかのフィルターもGlassStatus側へ移す
+・同じオブジェクトで複数回要求されても、同じseedと条件から同じ結果を返す
+
+想定メソッド:
+
+EnsureInitialCrackPointData(Vector2[] outline, int seed)
+
+または:
+
+GenerateInitialCrackPointData(Vector2[] outline, int seed)
+
+CrackProcessingComponent.Graph.csの役割:
+
+・GlassStatusから生成済みInitialCrackPointDataを受け取る
+・各データをCrackNodeへ変換する
+・既存cracksをCrackConnectionへ復元する
+・runtimeのcrackNodesとcrackConnectionsを管理する
+
+Graph.csから移動する対象:
+
+・outline幅と高さを求めてGlassStatusへ生成依頼する部分
+・生成点がoutline内か確認して有効点だけを残す部分
+・生成時の脆弱性データを対応付けるための一時Dictionary
+
+Graph.csへ残す対象:
+
+・GetOrCreateNode()
+・FindNodeAt()
+・CrackNode ID管理
+・既存描画クラックからのグラフ復元
+・表面傷と内部ノードの接続関係
+
+GlassStatusは仮想点の生成データを担当し、CrackProcessingComponentは亀裂グラフ上での利用を担当する。
+
+### 27.3 初回オーバーキル判定時の順序
+
+1. オブジェクト自身のoverkillEvaluationConsumedを確認する
+2. trueなら通常クラック処理へ進む
+3. falseなら、再入防止のため先にtrueへ変更する
+4. GlassStatusへoutlineとseedを渡し、仮想点データを確実に生成する
+5. Graph側で仮想点データをCrackNodeへ変換する
+6. 同じ仮想点データを放射線と三角形化計画へ使用する
+7. オーバーキル不成立または計画失敗でも、判定済み状態をfalseへ戻さない
+
+これにより、通常クラック用とオーバーキル用で異なる仮想点を生成することを防ぐ。
+
+---
+
 ## 旧案: 残余エネルギー連鎖方式（不採用・参考）
 
 以下は以前検討した「通常二分割後に残余エネルギーを次の破片へ渡す方式」。
