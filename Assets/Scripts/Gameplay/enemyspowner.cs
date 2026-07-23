@@ -12,6 +12,11 @@ namespace Gameplay
         public GlassStatus glassStatus;
         [Min(0)] public int difficulty = 1;
 
+        [Header("出現時の残骸排除")]
+        [SerializeField, Min(0.01f)] private float repulsionRadius = 12f;
+        [SerializeField, Min(0f)] private float repulsionAcceleration = 30f;
+        [SerializeField, Min(0.01f)] private float repulsionDuration = 1.5f;
+
         private BossAppearanceManager manager;
         private readonly List<EnemyDefeatComponent> trackedEnemies =
             new List<EnemyDefeatComponent>();
@@ -24,13 +29,15 @@ namespace Gameplay
             public bool IsActive;
         }
 
+        public int manualSpawnDiffculty = 1;
         public bool manualTrigger = false;
 
         void TriggerManualSpawn()
         {
             if(!manualTrigger) return;
             manualTrigger = false;
-            SpawnEnemy("Boss_A_core", new Vector2(0f, 4f), 0);
+            difficulty = manualSpawnDiffculty;
+            SpawnEnemyForCurrentDifficulty();
         }
 
         // EnemyTypeに対応する外周頂点を、敵の中心を原点としたローカル座標で返します。
@@ -187,6 +194,7 @@ namespace Gameplay
                 : "Basic";
             GameObject enemy = SpawnEnemy(enemyType, new Vector2(0f, 4f), 0);
             TrackEnemy(enemy);
+            CreateSpawnRepulsionField(enemy);
             Debug.Log($"Spawning {enemyType} at difficulty {difficulty}", this);
         }
 
@@ -251,11 +259,32 @@ namespace Gameplay
                     armor.transform.SetParent(enemy.transform, true);
                     BossGlassComponent boss = enemy.AddComponent<BossGlassComponent>();
                     boss.AddModule(armor, 3f);
-                    manager.apperdelay(enemy, armor);
+                    manager.apperdelay(enemy);
                     break;
             }
 
             return enemy;
+        }
+
+        private void CreateSpawnRepulsionField(GameObject spawnedEnemy)
+        {
+            if (spawnedEnemy == null)
+            {
+                return;
+            }
+
+            GameObject fieldObject = new GameObject(
+                $"{spawnedEnemy.name}_SpawnRepulsionField");
+            fieldObject.transform.SetParent(transform, false);
+            fieldObject.transform.position = spawnedEnemy.transform.position;
+
+            EnemySpawnRepulsionField field =
+                fieldObject.AddComponent<EnemySpawnRepulsionField>();
+            field.Initialize(
+                spawnedEnemy.transform,
+                repulsionRadius,
+                repulsionAcceleration,
+                repulsionDuration);
         }
 
         public void Init(GameObject obj, Vector2[] outlinePoints)
@@ -375,6 +404,78 @@ namespace Gameplay
             lr.endWidth = 0.05f;
             lr.startColor = Color.gray;
             lr.endColor = Color.gray;
+        }
+    }
+
+    /// <summary>
+    /// 敵出現地点から旧ガラス残骸を短時間押し出します。
+    /// 新しく出現した敵とその子オブジェクトには作用しません。
+    /// </summary>
+    [DisallowMultipleComponent]
+    internal sealed class EnemySpawnRepulsionField : MonoBehaviour
+    {
+        [SerializeField, Min(0.01f)] private float radius = 12f;
+        [SerializeField, Min(0f)] private float outwardAcceleration = 30f;
+        [SerializeField, Min(0.01f)] private float duration = 1.5f;
+
+        private Transform excludedRoot;
+        private float elapsedTime;
+
+        public void Initialize(
+            Transform spawnedEnemyRoot,
+            float fieldRadius,
+            float acceleration,
+            float fieldDuration)
+        {
+            excludedRoot = spawnedEnemyRoot;
+            radius = Mathf.Max(0.01f, fieldRadius);
+            outwardAcceleration = Mathf.Max(0f, acceleration);
+            duration = Mathf.Max(0.01f, fieldDuration);
+        }
+
+        private void FixedUpdate()
+        {
+            elapsedTime += Time.fixedDeltaTime;
+            if (elapsedTime >= duration)
+            {
+                Destroy(gameObject);
+                return;
+            }
+
+            GlassFragment[] debris = FindObjectsByType<GlassFragment>();
+            Vector2 center = transform.position;
+            float radiusSquared = radius * radius;
+
+            for (int debrisIndex = 0; debrisIndex < debris.Length; debrisIndex++)
+            {
+                GlassFragment fragment = debris[debrisIndex];
+                if (fragment == null ||
+                    (excludedRoot != null &&
+                        fragment.transform.IsChildOf(excludedRoot)) ||
+                    !fragment.TryGetComponent(out Rigidbody2D body) ||
+                    body.bodyType != RigidbodyType2D.Dynamic)
+                {
+                    continue;
+                }
+
+                Vector2 offset = body.worldCenterOfMass - center;
+                float distanceSquared = offset.sqrMagnitude;
+                if (distanceSquared > radiusSquared)
+                {
+                    continue;
+                }
+
+                float distance = Mathf.Sqrt(distanceSquared);
+                Vector2 direction = distance > Mathf.Epsilon
+                    ? offset / distance
+                    : Vector2.up;
+                float distanceFactor = Mathf.Max(0.2f, 1f - distance / radius);
+
+                // 質量を掛けて、大小の破片へ同じ外向き加速度を与える。
+                body.AddForce(
+                    direction * outwardAcceleration * distanceFactor * body.mass,
+                    ForceMode2D.Force);
+            }
         }
     }
 }

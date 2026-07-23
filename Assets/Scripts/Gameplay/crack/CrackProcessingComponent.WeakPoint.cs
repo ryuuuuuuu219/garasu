@@ -106,6 +106,12 @@ namespace GlassShooter.Gameplay
 
         private void ReleaseFromAnchorAfterDefeat()
         {
+            ReleaseFromAnchor();
+        }
+
+        /// <summary>固定されているガラスを物理演算へ解放します。</summary>
+        public void ReleaseFromAnchor()
+        {
             isReleasedFromAnchor = true;
             anchorFailureEnergy = 0f;
 

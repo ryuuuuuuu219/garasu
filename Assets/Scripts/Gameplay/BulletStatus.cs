@@ -31,6 +31,16 @@ namespace GlassShooter.Gameplay
         /// </summary>
         public float ContactSizeMultiplier => contactSizeMultiplier;
 
+        private void Start()
+        {
+            // 発射済みの弾はPlayerShooterControllerから現在値をコピーされるため、
+            // ここで保存値を再適用してコピー内容を上書きしない。
+            if (!TryGetComponent<Projectile>(out _))
+            {
+                GrowthStatusComponent.Instance.ApplyTo(this);
+            }
+        }
+
         /// <summary>成長画面で確定した弾ステータスを反映します。</summary>
         public void ApplyGrowthStatus(
             float newMass,

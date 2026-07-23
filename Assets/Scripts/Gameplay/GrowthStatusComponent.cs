@@ -216,7 +216,7 @@ namespace GlassShooter.Gameplay
             }
         }
 
-        private void ApplyTo(BulletStatus target)
+        public void ApplyTo(BulletStatus target)
         {
             target.ApplyGrowthStatus(
                 GetValue(GrowthStatId.BulletMass),
