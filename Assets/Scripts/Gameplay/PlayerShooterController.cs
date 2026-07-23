@@ -272,11 +272,7 @@ namespace GlassShooter.Gameplay
             Vector3 spawnPosition = firePoint != null
                 ? firePoint.position
                 : transform.position;
-            int shotCount = Mathf.Max(1, bulletStatus.SimultaneousShotCount);
-            for (int shotIndex = 0; shotIndex < shotCount; shotIndex++)
-            {
-                SpawnProjectile(spawnPosition);
-            }
+            SpawnProjectile(spawnPosition);
 
             nextFireTime = Time.time + fireInterval;
         }

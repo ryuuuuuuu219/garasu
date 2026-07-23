@@ -12,7 +12,6 @@ namespace GlassShooter.Gameplay
         [SerializeField, Min(0f)] private float mass = 1f;
         [SerializeField] private Vector2 currentVelocity = new Vector2(0f, 12f);
         [SerializeField, Min(0f)] private float fireRate = 6.25f;
-        [SerializeField, Min(1)] private int simultaneousShotCount = 1;
 
         [Header("Fracture")]
         [SerializeField, Range(0f, 1f)] private float crackConversionEfficiency = 0.5f;
@@ -24,7 +23,6 @@ namespace GlassShooter.Gameplay
         public float Mass => mass;
         public Vector2 CurrentVelocity => currentVelocity;
         public float FireRate => fireRate;
-        public int SimultaneousShotCount => simultaneousShotCount;
         public float CrackConversionEfficiency => crackConversionEfficiency;
 
         /// <summary>
@@ -38,7 +36,6 @@ namespace GlassShooter.Gameplay
             float newMass,
             float speed,
             float newFireRate,
-            int newSimultaneousShotCount,
             float newCrackConversionEfficiency,
             float newContactSizeMultiplier)
         {
@@ -48,7 +45,6 @@ namespace GlassShooter.Gameplay
                 : Vector2.up;
             currentVelocity = direction * Mathf.Max(0f, speed);
             fireRate = Mathf.Max(0f, newFireRate);
-            simultaneousShotCount = Mathf.Max(1, newSimultaneousShotCount);
             crackConversionEfficiency = Mathf.Clamp01(newCrackConversionEfficiency);
             contactSizeMultiplier = Mathf.Clamp01(newContactSizeMultiplier);
         }
@@ -58,7 +54,6 @@ namespace GlassShooter.Gameplay
             mass = original.Mass;
             currentVelocity = original.CurrentVelocity;
             fireRate = original.FireRate;
-            simultaneousShotCount = original.SimultaneousShotCount;
             crackConversionEfficiency = original.CrackConversionEfficiency;
             contactSizeMultiplier = original.ContactSizeMultiplier;
         }
@@ -79,7 +74,6 @@ namespace GlassShooter.Gameplay
         {
             mass = Mathf.Max(0f, mass);
             fireRate = Mathf.Max(0f, fireRate);
-            simultaneousShotCount = Mathf.Max(1, simultaneousShotCount);
             contactSizeMultiplier = Mathf.Clamp01(contactSizeMultiplier);
         }
     }

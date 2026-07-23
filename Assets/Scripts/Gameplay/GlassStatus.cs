@@ -142,7 +142,7 @@ namespace GlassShooter.Gameplay
                 5 * enemyClass + UnityEngine.Random.Range(-8, 9);
 
             ApplyEnemyDefenseStatus(
-                Mathf.Pow(10f, -wave),
+                Mathf.Pow(10f, wave * -0.3f),
                 pointCount,
                 Mathf.Clamp(scanRadiusCandidate, 3f, 20f));
         }

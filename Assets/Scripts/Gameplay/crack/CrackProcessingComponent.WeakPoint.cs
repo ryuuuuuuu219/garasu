@@ -5,12 +5,19 @@ namespace GlassShooter.Gameplay
     public sealed partial class CrackProcessingComponent
     {
         private const int WeakPointTriggerDegree = 2;
+        private const float WeakPointVulnerability = 0f;
 
         private void EnsureEnemyWeakPointInitialized()
         {
-            if (enemyDefeat == null || enemyDefeat.HasWeakPoint ||
+            if (enemyDefeat == null ||
                 initCrackPoint == null || initCrackPoint.Length == 0)
             {
+                return;
+            }
+
+            if (enemyDefeat.HasWeakPoint)
+            {
+                ApplyWeakPointVulnerability();
                 return;
             }
 
@@ -35,6 +42,18 @@ namespace GlassShooter.Gameplay
             }
 
             enemyDefeat.InitializeWeakPoint(selected);
+            ApplyWeakPointVulnerability();
+        }
+
+        private void ApplyWeakPointVulnerability()
+        {
+            CrackNode weakPointNode = FindNodeAt(enemyDefeat.WeakPointLocalPosition);
+            if (weakPointNode != null)
+            {
+                // 致命点が高いランダム脆弱度を引いてクラックを誘導しないよう、
+                // グラフを再構築するたびに最も亀裂が進みにくい値へ戻す。
+                weakPointNode.vulnerability = WeakPointVulnerability;
+            }
         }
 
         private bool IsEnemyWeakPoint(Vector2 localPosition)

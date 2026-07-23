@@ -123,7 +123,6 @@ namespace Gameplay
                 .AppendLine($"移動範囲: {(player != null ? player.MoveLimitMin : Vector2.zero)} ～ {(player != null ? player.MoveLimitMax : Vector2.zero)}")
                 .AppendLine($"実発射間隔: {(player != null ? player.FireInterval : 0f):0.###}")
                 .AppendLine($"発射レート: {sourceBullet.FireRate:0.###}")
-                .AppendLine($"同時発射数: {sourceBullet.SimultaneousShotCount}")
                 .AppendLine($"着弾時の接触サイズ倍率: {sourceBullet.ContactSizeMultiplier:0.####}")
                 .AppendLine($"厚さ / 密度 / 質量: {glass.Thickness:0.###} / {glass.Density:0.###} / {glass.Mass:0.###}")
                 .AppendLine($"初期亀裂数 / 仮想点数: {glass.InitialCrackCount} / {glass.VirtualPointCount}")

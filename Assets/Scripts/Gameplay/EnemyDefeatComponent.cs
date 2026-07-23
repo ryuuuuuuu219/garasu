@@ -9,7 +9,7 @@ namespace GlassShooter.Gameplay
     {
         private const int WeakPointSegments = 8;
         private const float WeakPointRadius = 0.06f;
-        private const float WeakPointLineWidth = 0.005f;
+        private const float WeakPointLineWidth = 0.02f;
         private static readonly Color WeakPointColor = new Color(1f, 0f, 0f, 0.4f);
 
         [SerializeField] private bool hasWeakPoint;
