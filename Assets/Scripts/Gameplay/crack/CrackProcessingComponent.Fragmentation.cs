@@ -8,7 +8,9 @@ namespace GlassShooter.Gameplay
     public sealed partial class CrackProcessingComponent
     {
         /// <summary>
-        /// 外周から外周へつながるクラックでガラスを二分し、2つの落下破片へ変換します。
+        /// 外周から外周へつながるクラックでガラスを二分します。
+        /// 固定中は現在の重心を含む側をこのGameObjectへ残し、反対側だけを新しい破片にします。
+        /// 解放済みの場合は従来どおり両側を新しい落下破片へ変換します。
         /// クラックはガラスのローカル座標で指定します。
         /// </summary>
         internal bool TrySeparateAlongCrackCore(Vector2[] crack)
@@ -34,9 +36,36 @@ namespace GlassShooter.Gameplay
 
             float firstArea = Mathf.Abs(SignedArea(firstRegion));
             float secondArea = Mathf.Abs(SignedArea(secondRegion));
-            bool firstIsLargest = firstArea >= secondArea;
-            bool firstIsReleased = isReleasedFromAnchor || !firstIsLargest;
-            bool secondIsReleased = isReleasedFromAnchor || firstIsLargest;
+            Vector2 sourceCentroid = CalculateCentroid(outline);
+            bool centroidInFirst = IsPointStrictlyInsidePolygon(sourceCentroid, firstRegion);
+            bool centroidInSecond = IsPointStrictlyInsidePolygon(sourceCentroid, secondRegion);
+            bool firstRetainsAnchor = centroidInFirst != centroidInSecond
+                ? centroidInFirst
+                : firstArea >= secondArea;
+            bool firstIsReleased = isReleasedFromAnchor || !firstRetainsAnchor;
+            bool secondIsReleased = isReleasedFromAnchor || firstRetainsAnchor;
+
+            if (!isReleasedFromAnchor)
+            {
+                Vector2[] retainedRegion = firstRetainsAnchor ? firstRegion : secondRegion;
+                Vector2[] releasedRegion = firstRetainsAnchor ? secondRegion : firstRegion;
+                int releasedPieceIndex = firstRetainsAnchor ? 1 : 0;
+
+                var retainedFragments = new List<GameObject>(2) { gameObject };
+                GameObject releasedFragment = CreateFragment(
+                    releasedRegion,
+                    releasedPieceIndex,
+                    true);
+                if (releasedFragment != null)
+                {
+                    retainedFragments.Add(releasedFragment);
+                }
+
+                BossGlassComponent retainedBoss = GetComponentInParent<BossGlassComponent>();
+                RetainFixedFragment(retainedRegion);
+                retainedBoss?.ReplaceModule(gameObject, retainedFragments);
+                return true;
+            }
 
             var fragments = new List<GameObject>(2);
             GameObject firstFragment = CreateFragment(firstRegion, 0, firstIsReleased);
@@ -439,6 +468,64 @@ namespace GlassShooter.Gameplay
                 }
             }
             return inside;
+        }
+
+        private void RetainFixedFragment(Vector2[] region)
+        {
+            float fragmentArea = Mathf.Abs(SignedArea(region));
+            Vector2[][] retainedCracks = ClipCracksToPolygon(cracks, region);
+
+            outline = CleanPolygon(region);
+            cracks = retainedCracks;
+            initCrackPoint = Array.Empty<Vector2>();
+            crackNodes.Clear();
+            crackConnections.Clear();
+            crackGraphInitialized = false;
+            crackRandom = null;
+            pooledImpactEnergy = 0f;
+            anchorFailureEnergy = 0f;
+            isReleasedFromAnchor = false;
+            overkillEvaluationConsumed = true;
+
+            if (outlineLineRenderer != null)
+            {
+                outlineLineRenderer.SetOutline(outline);
+            }
+            RenderCracks();
+
+            if (TryGetComponent(out PolygonCollider2D collider))
+            {
+                collider.points = outline;
+                collider.enabled = true;
+            }
+
+            if (glassStatus != null)
+            {
+                glassStatus.SetResourceRewardArea(CalculateWorldFragmentArea(fragmentArea));
+            }
+
+            Rigidbody2D body = GetComponent<Rigidbody2D>();
+            if (body == null)
+            {
+                body = gameObject.AddComponent<Rigidbody2D>();
+                body.bodyType = RigidbodyType2D.Dynamic;
+            }
+            body.mass = glassStatus != null
+                ? glassStatus.CalculateMass(fragmentArea)
+                : Mathf.Max(0.05f, fragmentArea);
+            ApplyAnchorState();
+
+            if (!TryGetComponent(out GlassFragment _))
+            {
+                gameObject.AddComponent<GlassFragment>();
+            }
+
+            ResourceUIManager.Instance?.ShowFragmentScore(
+                gameObject,
+                glassStatus != null ? glassStatus.resourceRewardArea : 0f);
+
+            // 同じGameObjectが次の着弾でさらに分割できるよう再入防止を解除する。
+            isSeparating = false;
         }
 
         private GameObject CreateFragment(Vector2[] region, int pieceIndex, bool releasedFromAnchor)
