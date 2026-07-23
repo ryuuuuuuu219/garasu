@@ -42,7 +42,9 @@ namespace GlassShooter.Gameplay
         public BulletStatus BulletStatus => bulletStatus;
         public Projectile ProjectilePrefab => projectilePrefab;
         public float MoveSpeed => moveSpeed;
-        public float FireInterval => fireInterval;
+        public float FireInterval => bulletStatus != null && bulletStatus.FireRate > 0f
+            ? 1f / bulletStatus.FireRate
+            : fireInterval;
 
         /// <summary>成長画面で確定したプレイヤーステータスを反映します。</summary>
         public void ApplyGrowthStatus(float newMoveSpeed, float newFireInterval, float hitboxScale)
@@ -272,13 +274,9 @@ namespace GlassShooter.Gameplay
             Vector3 spawnPosition = firePoint != null
                 ? firePoint.position
                 : transform.position;
-            int shotCount = Mathf.Max(1, bulletStatus.SimultaneousShotCount);
-            for (int shotIndex = 0; shotIndex < shotCount; shotIndex++)
-            {
-                SpawnProjectile(spawnPosition);
-            }
+            SpawnProjectile(spawnPosition);
 
-            nextFireTime = Time.time + fireInterval;
+            nextFireTime = Time.time + FireInterval;
         }
 
         private void SpawnProjectile(Vector3 spawnPosition)

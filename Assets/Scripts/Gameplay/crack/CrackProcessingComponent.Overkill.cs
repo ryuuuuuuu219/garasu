@@ -283,6 +283,7 @@ namespace GlassShooter.Gameplay
         private bool ExecuteOverkillFragments(List<Vector2[]> regions, bool grantInstantReward)
         {
             float minimumArea = glassStatus != null ? glassStatus.MinimumBreakableArea : 0.04f;
+            float sourceWorldArea = CalculateWorldFragmentArea(Mathf.Abs(SignedArea(outline)));
             int fragmentCount = 0;
             for (int i = 0; i < regions.Count; i++)
             {
@@ -303,10 +304,56 @@ namespace GlassShooter.Gameplay
                 sourceCollider.enabled = false;
             }
 
+            BossGlassComponent boss = GetComponentInParent<BossGlassComponent>();
+            int retainedRegionIndex = -1;
+            if (enemyDefeat != null)
+            {
+                MarkEnemyDefeated();
+
+                float bestArea = float.NegativeInfinity;
+                for (int i = 0; i < regions.Count; i++)
+                {
+                    float area = Mathf.Abs(SignedArea(regions[i]));
+                    if (area <= GeometryEpsilon)
+                    {
+                        continue;
+                    }
+
+                    bool containsWeakPoint = enemyDefeat.HasWeakPoint &&
+                        IsPointInsideOrOnPolygon(
+                            enemyDefeat.WeakPointLocalPosition,
+                            regions[i]);
+                    if (containsWeakPoint && area > bestArea)
+                    {
+                        retainedRegionIndex = i;
+                        bestArea = area;
+                    }
+                }
+
+                if (retainedRegionIndex < 0)
+                {
+                    for (int i = 0; i < regions.Count; i++)
+                    {
+                        float area = Mathf.Abs(SignedArea(regions[i]));
+                        if (area > minimumArea + GeometryEpsilon && area > bestArea)
+                        {
+                            retainedRegionIndex = i;
+                            bestArea = area;
+                        }
+                    }
+                }
+            }
+
             var fragments = new List<GameObject>(fragmentCount);
             int pieceIndex = 0;
             for (int i = 0; i < regions.Count; i++)
             {
+                if (i == retainedRegionIndex)
+                {
+                    pieceIndex++;
+                    continue;
+                }
+
                 GameObject fragment = CreateFragment(regions[i], pieceIndex++, true);
                 if (fragment != null)
                 {
@@ -314,18 +361,25 @@ namespace GlassShooter.Gameplay
                 }
             }
 
+            if (retainedRegionIndex >= 0)
+            {
+                RetainFragment(regions[retainedRegionIndex], true);
+                fragments.Insert(0, gameObject);
+            }
+
             // 三角形化オーバーキルだけが即時報酬を持つ。落下回収分は各破片に残す。
             if (grantInstantReward && fragments.Count > 0 && ResourceComponent.Instance != null)
             {
-                float worldArea = CalculateWorldFragmentArea(Mathf.Abs(SignedArea(outline)));
-                float reward = worldArea * worldArea *
+                float reward = sourceWorldArea * sourceWorldArea *
                     (1f + Mathf.Pow(1.01f, fragments.Count));
                 ResourceComponent.Instance.Add(reward);
             }
 
-            BossGlassComponent boss = GetComponentInParent<BossGlassComponent>();
             boss?.ReplaceModule(gameObject, fragments);
-            Destroy(gameObject);
+            if (retainedRegionIndex < 0)
+            {
+                Destroy(gameObject);
+            }
             return true;
         }
     }

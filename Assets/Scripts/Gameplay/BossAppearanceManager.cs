@@ -100,6 +100,37 @@ namespace Gameplay
             activePresentation = StartCoroutine(PlayPresentation(targets));
         }
 
+        /// <summary>
+        /// 進行中のボス戦のゲームオーバー判定対象を追加します。
+        /// シーン配置など、apperdelayを経由しないBossGlassComponentもこの経路で登録できます。
+        /// </summary>
+        public void RegisterActiveTarget(GameObject target)
+        {
+            if (target == null)
+            {
+                return;
+            }
+
+            if (activeTargets == null || activeTargets.Length == 0)
+            {
+                activeTargets = new[] { target };
+                return;
+            }
+
+            for (int targetIndex = 0; targetIndex < activeTargets.Length; targetIndex++)
+            {
+                if (activeTargets[targetIndex] == target)
+                {
+                    return;
+                }
+            }
+
+            GameObject[] expandedTargets = new GameObject[activeTargets.Length + 1];
+            activeTargets.CopyTo(expandedTargets, 0);
+            expandedTargets[activeTargets.Length] = target;
+            activeTargets = expandedTargets;
+        }
+
         private IEnumerator PlayPresentation(GameObject[] targets)
         {
             EnsureUI();
@@ -346,6 +377,15 @@ namespace Gameplay
 
             while (remaining > 0f)
             {
+                if (!HasSurvivingTarget(activeTargets))
+                {
+                    if (uiRoot != null)
+                    {
+                        uiRoot.SetActive(false);
+                    }
+                    yield break;
+                }
+
                 float deltaTime = Time.unscaledDeltaTime;
                 int displayedSecond = Mathf.CeilToInt(remaining);
                 if (displayedSecond != previousDisplayedSecond)
@@ -503,7 +543,19 @@ namespace Gameplay
 
             foreach (GameObject target in targets)
             {
-                if (target != null)
+                if (target == null)
+                {
+                    continue;
+                }
+
+                if (target.TryGetComponent(out EnemyDefeatComponent defeatState))
+                {
+                    if (!defeatState.IsDefeated)
+                    {
+                        return true;
+                    }
+                }
+                else
                 {
                     return true;
                 }

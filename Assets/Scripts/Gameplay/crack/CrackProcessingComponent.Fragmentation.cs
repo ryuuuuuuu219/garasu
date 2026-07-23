@@ -8,7 +8,9 @@ namespace GlassShooter.Gameplay
     public sealed partial class CrackProcessingComponent
     {
         /// <summary>
-        /// 外周から外周へつながるクラックでガラスを二分し、2つの落下破片へ変換します。
+        /// 外周から外周へつながるクラックでガラスを二分します。
+        /// 敵は弱点を含む側をこのGameObjectへ残し、activeTargetsの参照を維持します。
+        /// 敵以外は固定中のみ現在の重心を含む側をこのGameObjectへ残します。
         /// クラックはガラスのローカル座標で指定します。
         /// </summary>
         internal bool TrySeparateAlongCrackCore(Vector2[] crack)
@@ -34,9 +36,54 @@ namespace GlassShooter.Gameplay
 
             float firstArea = Mathf.Abs(SignedArea(firstRegion));
             float secondArea = Mathf.Abs(SignedArea(secondRegion));
-            bool firstIsLargest = firstArea >= secondArea;
-            bool firstIsReleased = isReleasedFromAnchor || !firstIsLargest;
-            bool secondIsReleased = isReleasedFromAnchor || firstIsLargest;
+            bool firstRetainsSource;
+            if (enemyDefeat != null && enemyDefeat.HasWeakPoint)
+            {
+                Vector2 weakPoint = enemyDefeat.WeakPointLocalPosition;
+                bool weakPointInFirst = IsPointInsideOrOnPolygon(weakPoint, firstRegion);
+                bool weakPointInSecond = IsPointInsideOrOnPolygon(weakPoint, secondRegion);
+                firstRetainsSource = weakPointInFirst != weakPointInSecond
+                    ? weakPointInFirst
+                    : firstArea >= secondArea;
+            }
+            else
+            {
+                Vector2 sourceCentroid = CalculateCentroid(outline);
+                bool centroidInFirst = IsPointStrictlyInsidePolygon(sourceCentroid, firstRegion);
+                bool centroidInSecond = IsPointStrictlyInsidePolygon(sourceCentroid, secondRegion);
+                firstRetainsSource = centroidInFirst != centroidInSecond
+                    ? centroidInFirst
+                    : firstArea >= secondArea;
+            }
+
+            bool firstIsReleased = isReleasedFromAnchor || !firstRetainsSource;
+            bool secondIsReleased = isReleasedFromAnchor || firstRetainsSource;
+            bool retainsOriginalObject = enemyDefeat != null || !isReleasedFromAnchor;
+
+            if (retainsOriginalObject)
+            {
+                Vector2[] retainedRegion = firstRetainsSource ? firstRegion : secondRegion;
+                Vector2[] releasedRegion = firstRetainsSource ? secondRegion : firstRegion;
+                int releasedPieceIndex = firstRetainsSource ? 1 : 0;
+
+                var retainedFragments = new List<GameObject>(2) { gameObject };
+                GameObject releasedFragment = CreateFragment(
+                    releasedRegion,
+                    releasedPieceIndex,
+                    true);
+                if (releasedFragment != null)
+                {
+                    retainedFragments.Add(releasedFragment);
+                }
+
+                BossGlassComponent retainedBoss = GetComponentInParent<BossGlassComponent>();
+                bool retainedIsReleased = enemyDefeat != null
+                    ? enemyDefeat.IsDefeated
+                    : false;
+                RetainFragment(retainedRegion, retainedIsReleased);
+                retainedBoss?.ReplaceModule(gameObject, retainedFragments);
+                return true;
+            }
 
             var fragments = new List<GameObject>(2);
             GameObject firstFragment = CreateFragment(firstRegion, 0, firstIsReleased);
@@ -441,6 +488,114 @@ namespace GlassShooter.Gameplay
             return inside;
         }
 
+        private static bool IsPointInsideOrOnPolygon(
+            Vector2 point,
+            IReadOnlyList<Vector2> polygon)
+        {
+            if (polygon == null || polygon.Count < 3)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < polygon.Count; i++)
+            {
+                if (IsPointOnSegment(point, polygon[i], polygon[(i + 1) % polygon.Count]))
+                {
+                    return true;
+                }
+            }
+
+            return IsPointStrictlyInsidePolygon(point, polygon);
+        }
+
+        private void RetainFragment(Vector2[] region, bool releasedFromAnchor)
+        {
+            float fragmentArea = Mathf.Abs(SignedArea(region));
+            Vector2[][] retainedCracks = ClipCracksToPolygon(cracks, region);
+            var retainedInitialPoints = new List<Vector2>();
+            if (initCrackPoint != null)
+            {
+                for (int i = 0; i < initCrackPoint.Length; i++)
+                {
+                    if (IsPointInsideOrOnPolygon(initCrackPoint[i], region))
+                    {
+                        retainedInitialPoints.Add(initCrackPoint[i]);
+                    }
+                }
+            }
+
+            if (enemyDefeat != null && enemyDefeat.HasWeakPoint)
+            {
+                Vector2 weakPoint = enemyDefeat.WeakPointLocalPosition;
+                bool containsWeakPoint = false;
+                for (int i = 0; i < retainedInitialPoints.Count; i++)
+                {
+                    if ((retainedInitialPoints[i] - weakPoint).sqrMagnitude <=
+                        GeometryEpsilon * GeometryEpsilon)
+                    {
+                        containsWeakPoint = true;
+                        break;
+                    }
+                }
+                if (!containsWeakPoint)
+                {
+                    retainedInitialPoints.Add(weakPoint);
+                }
+            }
+
+            outline = CleanPolygon(region);
+            cracks = retainedCracks;
+            initCrackPoint = retainedInitialPoints.ToArray();
+            crackNodes.Clear();
+            crackConnections.Clear();
+            crackGraphInitialized = false;
+            crackRandom = null;
+            pooledImpactEnergy = 0f;
+            anchorFailureEnergy = 0f;
+            isReleasedFromAnchor = releasedFromAnchor;
+            overkillEvaluationConsumed = true;
+
+            if (outlineLineRenderer != null)
+            {
+                outlineLineRenderer.SetOutline(outline);
+            }
+            RenderCracks();
+
+            if (TryGetComponent(out PolygonCollider2D collider))
+            {
+                collider.points = outline;
+                collider.enabled = true;
+            }
+
+            if (glassStatus != null)
+            {
+                glassStatus.SetResourceRewardArea(CalculateWorldFragmentArea(fragmentArea));
+            }
+
+            Rigidbody2D body = GetComponent<Rigidbody2D>();
+            if (body == null)
+            {
+                body = gameObject.AddComponent<Rigidbody2D>();
+                body.bodyType = RigidbodyType2D.Dynamic;
+            }
+            body.mass = glassStatus != null
+                ? glassStatus.CalculateMass(fragmentArea)
+                : Mathf.Max(0.05f, fragmentArea);
+            ApplyAnchorState();
+
+            if (!TryGetComponent(out GlassFragment _))
+            {
+                gameObject.AddComponent<GlassFragment>();
+            }
+
+            ResourceUIManager.Instance?.ShowFragmentScore(
+                gameObject,
+                glassStatus != null ? glassStatus.resourceRewardArea : 0f);
+
+            // 同じGameObjectが次の着弾でさらに分割できるよう再入防止を解除する。
+            isSeparating = false;
+        }
+
         private GameObject CreateFragment(Vector2[] region, int pieceIndex, bool releasedFromAnchor)
         {
             Vector2 centroid = CalculateCentroid(region);
@@ -623,6 +778,11 @@ namespace GlassShooter.Gameplay
             if (glassStatus == null)
             {
                 glassStatus = GetComponent<GlassStatus>();
+            }
+
+            if (enemyDefeat == null)
+            {
+                enemyDefeat = GetComponent<EnemyDefeatComponent>();
             }
 
             if (outlineLineRenderer == null)

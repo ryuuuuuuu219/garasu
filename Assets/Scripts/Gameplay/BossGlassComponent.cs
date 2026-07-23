@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using Gameplay;
 using UnityEngine;
 
 namespace GlassShooter.Gameplay
@@ -9,6 +10,7 @@ namespace GlassShooter.Gameplay
     /// ボス固有の蓄積破砕エネルギーや回復状態も今後ここで管理します。
     /// </summary>
     [DisallowMultipleComponent]
+    [RequireComponent(typeof(EnemyDefeatComponent))]
     public sealed class BossGlassComponent : MonoBehaviour
     {
         [Serializable]
@@ -29,6 +31,42 @@ namespace GlassShooter.Gameplay
         [SerializeField] private List<ModuleDetail> modules = new List<ModuleDetail>();
 
         public IReadOnlyList<ModuleDetail> Modules => modules;
+
+        private void Awake()
+        {
+            if (TryGetComponent(out EnemyDefeatComponent coreDefeat))
+            {
+                coreDefeat.Defeated += ReleaseBossDebris;
+            }
+        }
+
+        private void Start()
+        {
+            BossAppearanceManager appearanceManager =
+                GetComponentInParent<BossAppearanceManager>();
+            if (appearanceManager == null)
+            {
+                appearanceManager = FindAnyObjectByType<BossAppearanceManager>();
+            }
+
+            if (appearanceManager == null)
+            {
+                Debug.LogWarning(
+                    "BossAppearanceManagerが見つからないため、ゲームオーバー判定対象へ登録できません。",
+                    this);
+                return;
+            }
+
+            appearanceManager.RegisterActiveTarget(gameObject);
+        }
+
+        private void OnDestroy()
+        {
+            if (TryGetComponent(out EnemyDefeatComponent coreDefeat))
+            {
+                coreDefeat.Defeated -= ReleaseBossDebris;
+            }
+        }
 
         public void AddModule(GameObject module, float healingInterval)
         {
@@ -77,6 +115,51 @@ namespace GlassShooter.Gameplay
             }
 
             return true;
+        }
+
+        private void ReleaseBossDebris()
+        {
+            Transform debrisParent = transform.parent;
+            MarkAsDebris(gameObject);
+
+            for (int moduleIndex = modules.Count - 1; moduleIndex >= 0; moduleIndex--)
+            {
+                GameObject module = modules[moduleIndex].Module;
+                if (module == null)
+                {
+                    modules.RemoveAt(moduleIndex);
+                    continue;
+                }
+
+                if (module != gameObject)
+                {
+                    module.transform.SetParent(debrisParent, true);
+                }
+
+                if (module.TryGetComponent(out CrackProcessingComponent crackProcessing))
+                {
+                    crackProcessing.ReleaseFromAnchor();
+                }
+                else
+                {
+                    Rigidbody2D body = module.TryGetComponent(out Rigidbody2D existingBody)
+                        ? existingBody
+                        : module.AddComponent<Rigidbody2D>();
+                    body.bodyType = RigidbodyType2D.Dynamic;
+                    body.constraints = RigidbodyConstraints2D.None;
+                    body.gravityScale = 1f;
+                }
+
+                MarkAsDebris(module);
+            }
+        }
+
+        private static void MarkAsDebris(GameObject target)
+        {
+            if (!target.TryGetComponent(out GlassFragment _))
+            {
+                target.AddComponent<GlassFragment>();
+            }
         }
 
         private void Update()

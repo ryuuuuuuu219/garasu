@@ -7,6 +7,8 @@ namespace GlassShooter.Gameplay
     [DisallowMultipleComponent]
     public sealed class ResourceComponent : MonoBehaviour
     {
+        private const string PlayerPrefsKey = "GlassShooter.Resource";
+
         [SerializeField, Min(0f)] private float resource = 100f;
 
         private static ResourceComponent instance;
@@ -29,6 +31,7 @@ namespace GlassShooter.Gameplay
             }
 
             resource += amount;
+            SaveResource();
             ResourceChanged?.Invoke(resource);
         }
 
@@ -40,6 +43,7 @@ namespace GlassShooter.Gameplay
             }
 
             resource -= amount;
+            SaveResource();
             ResourceChanged?.Invoke(resource);
             return true;
         }
@@ -54,6 +58,7 @@ namespace GlassShooter.Gameplay
 
             instance = this;
             DontDestroyOnLoad(gameObject);
+            resource = Mathf.Max(0f, PlayerPrefs.GetFloat(PlayerPrefsKey, resource));
             if (!TryGetComponent(out GrowthStatusComponent _))
             {
                 gameObject.AddComponent<GrowthStatusComponent>();
@@ -66,6 +71,24 @@ namespace GlassShooter.Gameplay
             {
                 instance = null;
             }
+        }
+
+        private void OnApplicationPause(bool pauseStatus)
+        {
+            if (pauseStatus)
+            {
+                PlayerPrefs.Save();
+            }
+        }
+
+        private void OnApplicationQuit()
+        {
+            PlayerPrefs.Save();
+        }
+
+        private void SaveResource()
+        {
+            PlayerPrefs.SetFloat(PlayerPrefsKey, resource);
         }
 
         private static ResourceComponent EnsureInstance()

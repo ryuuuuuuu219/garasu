@@ -524,7 +524,6 @@ MonoBehaviour:
   mass: 0.06
   currentVelocity: {x: 0, y: 12}
   fireRate: 6.25
-  simultaneousShotCount: 1
   crackConversionEfficiency: 0.058
   contactSizeMultiplier: 0.904382
 --- !u!4 &848862845

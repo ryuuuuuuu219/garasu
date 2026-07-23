@@ -11,7 +11,6 @@ namespace GlassShooter.Gameplay
         BulletMass,
         BulletSpeed,
         BulletFireRate,
-        BulletShotCount,
         BulletCrackEfficiency,
         BulletContactSize,
         GlassThickness,
@@ -82,7 +81,6 @@ namespace GlassShooter.Gameplay
             new(GrowthStatId.BulletMass, "弾幕・破砕弾強化", "質量強化", 0.03f, 0f, int.MaxValue, 2),
             new(GrowthStatId.BulletSpeed, "弾幕・破砕弾強化", "初速強化", 3f, 0f, int.MaxValue, 1),
             new(GrowthStatId.BulletFireRate, "弾幕・破砕弾強化", "発射レート強化", 1f, 0f, int.MaxValue, 5),
-            new(GrowthStatId.BulletShotCount, "弾幕・破砕弾強化", "同時発射数強化", 1f, 0f, int.MaxValue, 1000, true),
             new(GrowthStatId.BulletCrackEfficiency, "弾幕・破砕弾強化", "クラック変換効率強化", 0.05f, 0f, int.MaxValue, 2),
             new(GrowthStatId.BulletContactSize, "弾幕・破砕弾強化", "縮小率強化", 1f, 0f, int.MaxValue, 20),
             new(GrowthStatId.GlassThickness, "ガラス", "厚さ", 1f, 0.1f, 20, 2),
@@ -115,7 +113,6 @@ namespace GlassShooter.Gameplay
             Definitions[(int)GrowthStatId.BulletSpeed],
             Definitions[(int)GrowthStatId.BulletCrackEfficiency],
             Definitions[(int)GrowthStatId.BulletFireRate],
-            Definitions[(int)GrowthStatId.BulletShotCount],
             Definitions[(int)GrowthStatId.BulletContactSize],
             Definitions[(int)GrowthStatId.PlayerHitboxScale],
             Definitions[(int)GrowthStatId.PlayerMoveSpeed]
@@ -124,6 +121,7 @@ namespace GlassShooter.Gameplay
         [SerializeField] private int[] upgradeLevels = new int[(int)GrowthStatId.Count];
 
         private static GrowthStatusComponent instance;
+        private const string PlayerPrefsKeyPrefix = "GlassShooter.Growth.Level.";
         private ResourceComponent resource;
 
         public static GrowthStatusComponent Instance
@@ -155,7 +153,6 @@ namespace GlassShooter.Gameplay
                 GrowthStatId.BulletSpeed => 3f + 0.2f * Mathf.Sqrt(level),
                 GrowthStatId.BulletCrackEfficiency => 0.05f + 0.01f * Mathf.Sqrt(level),
                 GrowthStatId.BulletFireRate => 1f + Mathf.Sqrt(0.2f * level),
-                GrowthStatId.BulletShotCount => 1f + level,
                 GrowthStatId.BulletContactSize => 1f - 0.001f * level,
                 GrowthStatId.PlayerHitboxScale => Mathf.Pow(0.2f, Mathf.Max(level / 1000f, 1f)),
                 GrowthStatId.PlayerMoveSpeed => 4f + 0.5f * level,
@@ -184,6 +181,7 @@ namespace GlassShooter.Gameplay
             }
 
             upgradeLevels[(int)id]++;
+            SaveLevels();
             ApplyToScene(SceneManager.GetActiveScene());
             Changed?.Invoke();
             return true;
@@ -218,13 +216,12 @@ namespace GlassShooter.Gameplay
             }
         }
 
-        private void ApplyTo(BulletStatus target)
+        public void ApplyTo(BulletStatus target)
         {
             target.ApplyGrowthStatus(
                 GetValue(GrowthStatId.BulletMass),
                 GetValue(GrowthStatId.BulletSpeed),
                 GetValue(GrowthStatId.BulletFireRate),
-                Mathf.RoundToInt(GetValue(GrowthStatId.BulletShotCount)),
                 GetValue(GrowthStatId.BulletCrackEfficiency),
                 GetValue(GrowthStatId.BulletContactSize));
         }
@@ -252,6 +249,7 @@ namespace GlassShooter.Gameplay
             {
                 Array.Resize(ref upgradeLevels, (int)GrowthStatId.Count);
             }
+            LoadLevels();
         }
 
         private void OnEnable()
@@ -275,6 +273,27 @@ namespace GlassShooter.Gameplay
         private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
             ApplyToScene(scene);
+        }
+
+        private void LoadLevels()
+        {
+            for (int index = 0; index < (int)GrowthStatId.Count; index++)
+            {
+                GrowthStatId id = (GrowthStatId)index;
+                upgradeLevels[index] = Mathf.Max(
+                    0,
+                    PlayerPrefs.GetInt(PlayerPrefsKeyPrefix + id, upgradeLevels[index]));
+            }
+        }
+
+        private void SaveLevels()
+        {
+            for (int index = 0; index < (int)GrowthStatId.Count; index++)
+            {
+                GrowthStatId id = (GrowthStatId)index;
+                PlayerPrefs.SetInt(PlayerPrefsKeyPrefix + id, upgradeLevels[index]);
+            }
+            PlayerPrefs.Save();
         }
     }
 }

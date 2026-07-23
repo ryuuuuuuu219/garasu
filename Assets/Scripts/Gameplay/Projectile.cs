@@ -35,7 +35,7 @@ namespace GlassShooter.Gameplay
             Vector2 velocity = Vector2.up * speed;
             if (TryGetComponent(out BulletStatus bulletStatus))
             {
-                bulletStatus.SetCurrentVelocity(velocity);
+                velocity = bulletStatus.CurrentVelocity;
             }
 
             Vector2 nextPosition = projectileRigidbody.position + velocity * Time.fixedDeltaTime;

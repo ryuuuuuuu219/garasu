@@ -11,6 +11,7 @@ namespace GlassShooter.Gameplay
         {
             if (crackGraphInitialized)
             {
+                EnsureEnemyWeakPointInitialized();
                 return;
             }
 
@@ -94,6 +95,8 @@ namespace GlassShooter.Gameplay
             }
 
             crackGraphInitialized = true;
+            EnsureEnemyWeakPointInitialized();
+            EvaluateWeakPointDefeat();
         }
 
         private void GetOutlineSize(out float width, out float height)
@@ -305,7 +308,11 @@ namespace GlassShooter.Gameplay
 
             // 面積の平方根とエネルギー比の平方根から一次走査距離を得る。
             float scanRadius = Mathf.Sqrt(glassArea) * Mathf.Sqrt(energyRatio);
-            return Mathf.Clamp(scanRadius, minimumScanRadius, maximumScanRadius);
+            float configuredMaximumRadius = glassStatus != null
+                ? glassStatus.MaximumScanRadius
+                : maximumScanRadius;
+            configuredMaximumRadius = Mathf.Max(minimumScanRadius, configuredMaximumRadius);
+            return Mathf.Clamp(scanRadius, minimumScanRadius, configuredMaximumRadius);
         }
 
     }

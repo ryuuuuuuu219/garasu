@@ -77,7 +77,7 @@ namespace Gameplay
                 sourceBullet.Mass,
                 actualSpeed,
                 sourceBullet.CrackConversionEfficiency,
-                glass.EnemyCrackEnergyCutRate);
+                glass.EnemyCrackEnergyMultiplier);
 
             float maximumArea = spawner.CalculateMaximumPatternArea();
             float characteristicLength = Mathf.Sqrt(maximumArea);
@@ -98,7 +98,7 @@ namespace Gameplay
                 .AppendLine($"質量: {sourceBullet.Mass:0.###}")
                 .AppendLine($"Projectile実移動速度: {actualSpeed:0.###}")
                 .AppendLine($"変換効率: {sourceBullet.CrackConversionEfficiency:0.###}")
-                .AppendLine($"敵側カット率: {glass.EnemyCrackEnergyCutRate:0.###}")
+                .AppendLine($"敵側クラックエネルギー乗数: {glass.EnemyCrackEnergyMultiplier:0.###}")
                 .AppendLine($"最小位置Y: {(player != null ? player.MoveLimitMin.y : 0f):0.###}")
                 .AppendLine($"最小着弾エネルギー: {minimumImpactEnergy:0.###}（現在は等速なのでY非依存）");
 
@@ -123,7 +123,6 @@ namespace Gameplay
                 .AppendLine($"移動範囲: {(player != null ? player.MoveLimitMin : Vector2.zero)} ～ {(player != null ? player.MoveLimitMax : Vector2.zero)}")
                 .AppendLine($"実発射間隔: {(player != null ? player.FireInterval : 0f):0.###}")
                 .AppendLine($"発射レート: {sourceBullet.FireRate:0.###}")
-                .AppendLine($"同時発射数: {sourceBullet.SimultaneousShotCount}")
                 .AppendLine($"着弾時の接触サイズ倍率: {sourceBullet.ContactSizeMultiplier:0.####}")
                 .AppendLine($"厚さ / 密度 / 質量: {glass.Thickness:0.###} / {glass.Density:0.###} / {glass.Mass:0.###}")
                 .AppendLine($"初期亀裂数 / 仮想点数: {glass.InitialCrackCount} / {glass.VirtualPointCount}")
@@ -150,10 +149,10 @@ namespace Gameplay
             float mass,
             float speed,
             float efficiency,
-            float enemyCutRate)
+            float enemyEnergyMultiplier)
         {
             return 0.5f * Mathf.Max(0f, mass) * speed * speed *
-                Mathf.Clamp01(efficiency) * (1f - Mathf.Clamp01(enemyCutRate));
+                Mathf.Clamp01(efficiency) * Mathf.Clamp01(enemyEnergyMultiplier);
         }
     }
 }

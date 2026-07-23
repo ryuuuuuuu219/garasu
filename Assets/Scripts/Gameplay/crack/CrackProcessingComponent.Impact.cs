@@ -40,6 +40,7 @@ namespace GlassShooter.Gameplay
 
             crackRandom ??= new System.Random(crackRandomSeed);
             int terminalNodeId = terminalNodeIds[crackRandom.Next(terminalNodeIds.Count)];
+            bool preservesWeakPoint = IsEnemyWeakPoint(crackNodes[terminalNodeId].localPosition);
             for (int connectionIndex = 0; connectionIndex < crackConnections.Count; connectionIndex++)
             {
                 CrackConnection connection = crackConnections[connectionIndex];
@@ -50,6 +51,13 @@ namespace GlassShooter.Gameplay
 
                 crackConnections.RemoveAt(connectionIndex);
                 break;
+            }
+
+            if (preservesWeakPoint)
+            {
+                cracks = BuildRenderableCrackPaths();
+                RenderCracks();
+                return true;
             }
 
             // GetNodeはIDをリストの添字として扱うため、末端ノード削除後にIDを詰める。
@@ -126,7 +134,8 @@ namespace GlassShooter.Gameplay
             // 以降のクラック計算は必ずローカル座標を使う。
             Vector2 impactLocalPosition = transform.InverseTransformPoint(impactWorldPosition);
 
-            if (TryGetComponent(out GlassFragment _) &&
+            if (enemyDefeat == null &&
+                TryGetComponent(out GlassFragment _) &&
                 glassStatus != null &&
                 Mathf.Abs(SignedArea(outline)) + GeometryEpsilon < glassStatus.MinimumBreakableArea)
             {
@@ -137,7 +146,7 @@ namespace GlassShooter.Gameplay
 
             EnsureCrackGraphInitialized();
             float enemyEnergyMultiplier = glassStatus != null
-                ? 1f - glassStatus.EnemyCrackEnergyCutRate
+                ? glassStatus.EnemyCrackEnergyMultiplier
                 : 1f;
             float newImpactEnergy = bulletStatus.CalculateKineticEnergy()
                 * bulletStatus.CrackConversionEfficiency
@@ -177,6 +186,7 @@ namespace GlassShooter.Gameplay
                 paths,
                 impactEnergy,
                 out bool crackProgressed);
+            EvaluateWeakPointDefeat();
             cracks = BuildRenderableCrackPaths();
 
             AccumulateFailedImpactAndReleaseTerminalFragment(
@@ -186,7 +196,8 @@ namespace GlassShooter.Gameplay
             // ボス本体は蓄積破砕を前提とするため、着弾で縮小させない。
             // 分離後の通常破片にはBossGlassComponentを継承しないので、
             // 追撃分だけ最終回収面積が減る。
-            bool preventsImpactShrink = TryGetComponent(out BossGlassComponent _);
+            bool preventsImpactShrink = enemyDefeat != null ||
+                TryGetComponent(out BossGlassComponent _);
             if (!preventsImpactShrink &&
                 !ApplySizeMultiplier(bulletStatus.ContactSizeMultiplier))
             {
@@ -257,7 +268,8 @@ namespace GlassShooter.Gameplay
             if (crackProgressed ||
                 isReleasedFromAnchor ||
                 terminalFragmentMaximumArea <= 0f ||
-                !TryGetComponent(out GlassFragment _))
+                !TryGetComponent(out GlassFragment _) ||
+                (enemyDefeat != null && !enemyDefeat.IsDefeated))
             {
                 return;
             }

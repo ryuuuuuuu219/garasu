@@ -1,4 +1,5 @@
 ﻿using GlassShooter.Gameplay;
+using System.Collections.Generic;
 using PolygonRendering;
 using UnityEngine;
 
@@ -9,8 +10,16 @@ namespace Gameplay
     internal class enemyspowner : MonoBehaviour
     {
         public GlassStatus glassStatus;
+        [Min(0)] public int difficulty = 1;
+
+        [Header("出現時の残骸排除")]
+        [SerializeField, Min(0.01f)] private float repulsionRadius = 12f;
+        [SerializeField, Min(0f)] private float repulsionAcceleration = 30f;
+        [SerializeField, Min(0.01f)] private float repulsionDuration = 1.5f;
 
         private BossAppearanceManager manager;
+        private readonly List<EnemyDefeatComponent> trackedEnemies =
+            new List<EnemyDefeatComponent>();
 
         private struct SpawnPattern
         {
@@ -20,13 +29,15 @@ namespace Gameplay
             public bool IsActive;
         }
 
+        public int manualSpawnDiffculty = 1;
         public bool manualTrigger = false;
 
         void TriggerManualSpawn()
         {
             if(!manualTrigger) return;
             manualTrigger = false;
-            SpawnEnemy("Boss_A_core", new Vector2(0f, 4f), 0);
+            difficulty = manualSpawnDiffculty;
+            SpawnEnemyForCurrentDifficulty();
         }
 
         // EnemyTypeに対応する外周頂点を、敵の中心を原点としたローカル座標で返します。
@@ -112,6 +123,7 @@ namespace Gameplay
         private float _timer;
         private int _currentPatternId = -1;
         private int _lastSpawnedEnemyId = -1;
+        private bool _initialEnemySpawned;
 
         public int CurrentPatternId => _currentPatternId;
         public int LastSpawnedEnemyId => _lastSpawnedEnemyId;
@@ -164,24 +176,71 @@ namespace Gameplay
             TriggerManualSpawn();
             _timer += Time.deltaTime;
 
-            for (int patternIndex = 0; patternIndex < _spawnPatterns.Length; patternIndex++)
+            if (!_initialEnemySpawned &&
+                _spawnPatterns.Length > 0 &&
+                _timer >= _spawnPatterns[0].Time)
             {
-                SpawnPattern pattern = _spawnPatterns[patternIndex];
-                if (pattern.IsActive || _timer < pattern.Time)
-                {
-                    continue;
-                }
-
-                for (int positionIndex = 0; positionIndex < pattern.Positions.Length; positionIndex++)
-                {
-                    _currentPatternId = patternIndex;
-                    SpawnEnemy(pattern.EnemyType, pattern.Positions[positionIndex], positionIndex);
-                }
-
-                pattern.IsActive = true;
-                _spawnPatterns[patternIndex] = pattern;
-                Debug.Log($"Spawning {pattern.EnemyType} at time {_timer}", this);
+                _initialEnemySpawned = true;
+                SpawnEnemyForCurrentDifficulty();
             }
+        }
+
+        private void SpawnEnemyForCurrentDifficulty()
+        {
+            ClearTrackedEnemies();
+            _currentPatternId = difficulty;
+            string enemyType = difficulty % 5 == 0
+                ? "Boss_A_core"
+                : "Basic";
+            GameObject enemy = SpawnEnemy(enemyType, new Vector2(0f, 4f), 0);
+            TrackEnemy(enemy);
+            CreateSpawnRepulsionField(enemy);
+            Debug.Log($"Spawning {enemyType} at difficulty {difficulty}", this);
+        }
+
+        private void TrackEnemy(GameObject enemy)
+        {
+            if (enemy == null || !enemy.TryGetComponent(out EnemyDefeatComponent defeat))
+            {
+                Debug.LogError("Spawned enemy has no EnemyDefeatComponent.", this);
+                return;
+            }
+
+            defeat.Defeated += OnEnemyDefeated;
+            trackedEnemies.Add(defeat);
+        }
+
+        private void OnEnemyDefeated()
+        {
+            if (difficulty < int.MaxValue)
+            {
+                difficulty++;
+            }
+
+            ClearTrackedEnemies();
+            SpawnEnemyForCurrentDifficulty();
+        }
+
+        private void ClearTrackedEnemies()
+        {
+            for (int i = 0; i < trackedEnemies.Count; i++)
+            {
+                if (trackedEnemies[i] != null)
+                {
+                    trackedEnemies[i].Defeated -= OnEnemyDefeated;
+                }
+            }
+            trackedEnemies.Clear();
+        }
+
+        private void OnDestroy()
+        {
+            ClearTrackedEnemies();
+        }
+
+        private void OnValidate()
+        {
+            difficulty = Mathf.Max(0, difficulty);
         }
 
         private GameObject SpawnEnemy(string enemyType, Vector2 localPosition, int positionIndex)
@@ -200,11 +259,32 @@ namespace Gameplay
                     armor.transform.SetParent(enemy.transform, true);
                     BossGlassComponent boss = enemy.AddComponent<BossGlassComponent>();
                     boss.AddModule(armor, 3f);
-                    manager.apperdelay(enemy, armor);
+                    manager.apperdelay(enemy);
                     break;
             }
 
             return enemy;
+        }
+
+        private void CreateSpawnRepulsionField(GameObject spawnedEnemy)
+        {
+            if (spawnedEnemy == null)
+            {
+                return;
+            }
+
+            GameObject fieldObject = new GameObject(
+                $"{spawnedEnemy.name}_SpawnRepulsionField");
+            fieldObject.transform.SetParent(transform, false);
+            fieldObject.transform.position = spawnedEnemy.transform.position;
+
+            EnemySpawnRepulsionField field =
+                fieldObject.AddComponent<EnemySpawnRepulsionField>();
+            field.Initialize(
+                spawnedEnemy.transform,
+                repulsionRadius,
+                repulsionAcceleration,
+                repulsionDuration);
         }
 
         public void Init(GameObject obj, Vector2[] outlinePoints)
@@ -235,6 +315,12 @@ namespace Gameplay
                 ? existingStatus
                 : obj.AddComponent<GlassStatus>();
             spawnedStatus.CopyFrom(glassStatus);
+            spawnedStatus.ApplyEnemyDefenseDifficulty(difficulty);
+
+            if (!obj.TryGetComponent(out EnemyDefeatComponent _))
+            {
+                obj.AddComponent<EnemyDefeatComponent>();
+            }
 
             // 子の描画とColliderを作った後に追加すると、Awakeで参照を自動取得できます。
             CrackProcessingComponent processing = obj.AddComponent<CrackProcessingComponent>();
@@ -318,6 +404,78 @@ namespace Gameplay
             lr.endWidth = 0.05f;
             lr.startColor = Color.gray;
             lr.endColor = Color.gray;
+        }
+    }
+
+    /// <summary>
+    /// 敵出現地点から旧ガラス残骸を短時間押し出します。
+    /// 新しく出現した敵とその子オブジェクトには作用しません。
+    /// </summary>
+    [DisallowMultipleComponent]
+    internal sealed class EnemySpawnRepulsionField : MonoBehaviour
+    {
+        [SerializeField, Min(0.01f)] private float radius = 12f;
+        [SerializeField, Min(0f)] private float outwardAcceleration = 30f;
+        [SerializeField, Min(0.01f)] private float duration = 1.5f;
+
+        private Transform excludedRoot;
+        private float elapsedTime;
+
+        public void Initialize(
+            Transform spawnedEnemyRoot,
+            float fieldRadius,
+            float acceleration,
+            float fieldDuration)
+        {
+            excludedRoot = spawnedEnemyRoot;
+            radius = Mathf.Max(0.01f, fieldRadius);
+            outwardAcceleration = Mathf.Max(0f, acceleration);
+            duration = Mathf.Max(0.01f, fieldDuration);
+        }
+
+        private void FixedUpdate()
+        {
+            elapsedTime += Time.fixedDeltaTime;
+            if (elapsedTime >= duration)
+            {
+                Destroy(gameObject);
+                return;
+            }
+
+            GlassFragment[] debris = FindObjectsByType<GlassFragment>();
+            Vector2 center = transform.position;
+            float radiusSquared = radius * radius;
+
+            for (int debrisIndex = 0; debrisIndex < debris.Length; debrisIndex++)
+            {
+                GlassFragment fragment = debris[debrisIndex];
+                if (fragment == null ||
+                    (excludedRoot != null &&
+                        fragment.transform.IsChildOf(excludedRoot)) ||
+                    !fragment.TryGetComponent(out Rigidbody2D body) ||
+                    body.bodyType != RigidbodyType2D.Dynamic)
+                {
+                    continue;
+                }
+
+                Vector2 offset = body.worldCenterOfMass - center;
+                float distanceSquared = offset.sqrMagnitude;
+                if (distanceSquared > radiusSquared)
+                {
+                    continue;
+                }
+
+                float distance = Mathf.Sqrt(distanceSquared);
+                Vector2 direction = distance > Mathf.Epsilon
+                    ? offset / distance
+                    : Vector2.up;
+                float distanceFactor = Mathf.Max(0.2f, 1f - distance / radius);
+
+                // 質量を掛けて、大小の破片へ同じ外向き加速度を与える。
+                body.AddForce(
+                    direction * outwardAcceleration * distanceFactor * body.mass,
+                    ForceMode2D.Force);
+            }
         }
     }
 }
