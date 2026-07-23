@@ -503,7 +503,19 @@ namespace Gameplay
 
             foreach (GameObject target in targets)
             {
-                if (target != null)
+                if (target == null)
+                {
+                    continue;
+                }
+
+                if (target.TryGetComponent(out EnemyDefeatComponent defeatState))
+                {
+                    if (!defeatState.IsDefeated)
+                    {
+                        return true;
+                    }
+                }
+                else
                 {
                     return true;
                 }

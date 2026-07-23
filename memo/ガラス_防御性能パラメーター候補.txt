@@ -4,14 +4,14 @@
 
 敵の亀裂に対する防御性能は、次の項目だけで決定する方向とする。
 
-・enemyCrackEnergyCutRate
+・enemyCrackEnergyMultiplier
 ・baseFractureResistance（実装済み、廃止予定）
 ・virtualPointCount
 ・maximumScanRadius
 
 baseFractureResistance廃止後の最終構成は、実質的に次の3項目になる。
 
-・enemyCrackEnergyCutRate
+・enemyCrackEnergyMultiplier
 ・virtualPointCount
 ・maximumScanRadius
 
@@ -19,12 +19,12 @@ baseFractureResistance廃止後の最終構成は、実質的に次の3項目に
 
 ---
 
-## 1. enemyCrackEnergyCutRate
+## 1. enemyCrackEnergyMultiplier
 
 状態: 最有力の新規実装候補
 
 名称:
-敵側クラックエネルギーカット率
+敵側クラックエネルギー乗数
 
 想定範囲:
 0～1
@@ -35,18 +35,18 @@ baseFractureResistance廃止後の最終構成は、実質的に次の3項目に
 = 0.5 × 弾質量 × 現在速度^2 × crackConversionEfficiency
 
 敵側補正後エネルギー
-= 弾側変換後エネルギー × (1 - enemyCrackEnergyCutRate)
+= 弾側変換後エネルギー × enemyCrackEnergyMultiplier
 
 例:
 
-・0ならカットなし
-・0.25なら25%カット
+・1ならカットなし
+・0.75なら25%カット
 ・0.5なら50%カット
-・1ならクラック用エネルギーを完全に無効化
+・0ならクラック用エネルギーを完全に無効化
 
 防御への作用:
 
-・高いほど敵の防御力が高い
+・低いほど敵の防御力が高い
 ・走査半径へ渡るエネルギーを減らす
 ・クラック接続へ使用できる予算を減らす
 ・pooledImpactEnergyへ残るエネルギーも補正後の値にする
@@ -64,7 +64,7 @@ baseFractureResistance廃止後の最終構成は、実質的に次の3項目に
 ・分離後は補正済み残余エネルギーを破片へ渡す
 ・同一着弾の連鎖中に破片ごとに再適用しない
 
-この値を、敵防御力の中心となる割合パラメーターにする。
+この値を、敵防御力の中心となる乗数パラメーターにする。
 
 ---
 
@@ -89,10 +89,10 @@ baseFractureResistance廃止後の最終構成は、実質的に次の3項目に
 
 廃止理由:
 
-・敵側エネルギーカット率と防御上の役割が重複する
+・敵側エネルギー乗数と防御上の役割が重複する
 ・走査半径と接続コストの両方へ作用し、調整結果を直感的に把握しにくい
 ・倍率防御と割合カットが併存すると、防御値の責任範囲が分かりにくくなる
-・敵ごとの防御性能をenemyCrackEnergyCutRateへ集約した方が比較しやすい
+・敵ごとの防御性能をenemyCrackEnergyMultiplierへ集約した方が比較しやすい
 
 廃止後の想定:
 
@@ -105,8 +105,8 @@ baseFractureResistance廃止後の最終構成は、実質的に次の3項目に
 移行手順:
 
 1. 全生成ガラスでbaseFractureResistanceを1に固定する
-2. enemyCrackEnergyCutRateを追加する
-3. 既存バランスをenemyCrackEnergyCutRateへ移す
+2. enemyCrackEnergyMultiplierを追加する
+3. 既存バランスをenemyCrackEnergyMultiplierへ移す
 4. 走査半径計算からbaseFractureResistanceの除算を外す
 5. 接続コスト計算からbaseFractureResistanceの乗算を外す
 6. Inspector、プロパティ、コピー処理、検算表示から削除する
@@ -196,12 +196,12 @@ virtualPointCountは、値を上げれば必ず防御力が上がる、または
 
 ## 5. 最終的な防御構成
 
-### enemyCrackEnergyCutRate
+### enemyCrackEnergyMultiplier
 
 担当:
 一発ごとの有効エネルギー量
 
-高いほど防御的。
+低いほど防御的。
 
 ### virtualPointCount
 
@@ -232,31 +232,31 @@ virtualPointCountは、値を上げれば必ず防御力が上がる、または
 
 標準ガラス:
 
-・enemyCrackEnergyCutRate = 0
+・enemyCrackEnergyMultiplier = 1
 ・virtualPointCount = 32
 ・maximumScanRadius = 20
 
 耐衝撃ガラス:
 
-・enemyCrackEnergyCutRate = 0.3
+・enemyCrackEnergyMultiplier = 0.7
 ・virtualPointCount = 32
 ・maximumScanRadius = 12
 
 緻密ガラス:
 
-・enemyCrackEnergyCutRate = 0.15
+・enemyCrackEnergyMultiplier = 0.85
 ・virtualPointCount = 48
 ・maximumScanRadius = 16
 
 疎構造ガラス:
 
-・enemyCrackEnergyCutRate = 0.15
+・enemyCrackEnergyMultiplier = 0.85
 ・virtualPointCount = 16
 ・maximumScanRadius = 12
 
 ボス装甲:
 
-・enemyCrackEnergyCutRate = 0.5
+・enemyCrackEnergyMultiplier = 0.5
 ・virtualPointCount = 48
 ・maximumScanRadius = 8
 
@@ -299,7 +299,7 @@ virtualPointCountによる結果は形状と外周フォールバックの影響
 ## 8. 方針の短いまとめ
 
 敵防御の主値:
-enemyCrackEnergyCutRate
+enemyCrackEnergyMultiplier
 
 亀裂構造:
 virtualPointCount
@@ -311,4 +311,3 @@ maximumScanRadius
 baseFractureResistance
 
 この構成により、エネルギー防御、内部構造、到達距離を分離して調整する。
-

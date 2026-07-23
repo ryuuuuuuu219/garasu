@@ -601,7 +601,7 @@ totalReward
 2. 最初の攻撃でなければ、オーバーキル判定を行わず通常クラック処理へ進む
 3. 最初の攻撃なら、処理途中の再入を防ぐため判定済みフラグを先に立てる
 4. 弾の運動エネルギーへcrackConversionEfficiencyを掛ける
-5. enemyCrackEnergyCutRateを一回だけ適用し、カット後衝撃エネルギーEを確定する
+5. enemyCrackEnergyMultiplierを一回だけ適用し、補正後衝撃エネルギーEを確定する
 6. 初回判定にはpooledImpactEnergyを加えない
 7. 必要なら仮想点をseed付きで生成する
 8. 着弾点Pから各仮想点Viを通る有効放射線を一時データとして作る
@@ -703,7 +703,7 @@ totalReward
 
 プレイヤーの現在ステータスは考慮せず、クラック処理へ入った後の「カット後衝撃エネルギーE」で比較する。
 
-現在はenemyCrackEnergyCutRateが未実装なので、現行コード上はカット率0として扱う。
+現在はenemyCrackEnergyMultiplierを実装済みで、未補正時は乗数1として扱う。
 弾質量、弾速、crackConversionEfficiencyから必要なプレイヤーステータスを逆算する処理は、この比較へ含めない。
 
 オーバーキルは生成された敵への最初の攻撃時だけ判定するため、オーバーキル比較にはその一発のカット後衝撃エネルギーだけを使用する。
@@ -1110,17 +1110,17 @@ GlassStatusは仮想点の生成データを担当し、CrackProcessingComponent
 
 ---
 
-### 旧14. 敵側カット率との順序
+### 旧14. 敵側エネルギー乗数との順序
 
-enemyCrackEnergyCutRateを実装する場合、敵側カットは最初の着弾時に一回だけ適用する。
+enemyCrackEnergyMultiplierは、最初の着弾時に一回だけ適用する。
 
 弾側変換後エネルギー
 = 0.5 × 弾質量 × 現在速度^2 × crackConversionEfficiency
 
 敵側補正後エネルギー
-= 弾側変換後エネルギー × (1 - enemyCrackEnergyCutRate)
+= 弾側変換後エネルギー × enemyCrackEnergyMultiplier
 
-オーバーキル連鎖中に同じ敵側カット率を破片ごとに再適用すると、同じ一撃を複数回カットすることになる。
+オーバーキル連鎖中に同じ敵側乗数を破片ごとに再適用すると、同じ一撃を複数回補正することになる。
 したがって、連鎖へ渡すのは補正済み残余エネルギーとし、同一着弾内では再度カットしない。
 
 ---

@@ -39,7 +39,8 @@ namespace GlassShooter.Gameplay
         [SerializeField, Range(0f, 1f)] private float minimumInitialVulnerability;
         [SerializeField, Range(0f, 1f)] private float maximumInitialVulnerability = 1f;
         [SerializeField, Min(0)] private int virtualPointCount = 32;
-        [SerializeField, Range(0f, 1f)] private float enemyCrackEnergyCutRate;
+        [SerializeField, Range(0f, 1f)] private float enemyCrackEnergyMultiplier = 1f;
+        [SerializeField, Min(0f)] private float maximumScanRadius = 20f;
 
         [Header("Structure")]
         [SerializeField] private GlassOutlineShape outlineShape = GlassOutlineShape.Rectangle;
@@ -64,7 +65,8 @@ namespace GlassShooter.Gameplay
         public float MinimumInitialVulnerability => minimumInitialVulnerability;
         public float MaximumInitialVulnerability => maximumInitialVulnerability;
         public int VirtualPointCount => virtualPointCount;
-        public float EnemyCrackEnergyCutRate => enemyCrackEnergyCutRate;
+        public float EnemyCrackEnergyMultiplier => enemyCrackEnergyMultiplier;
+        public float MaximumScanRadius => maximumScanRadius;
         public GlassOutlineShape OutlineShape => outlineShape;
         public Vector2[] FixedPositions => (Vector2[])fixedPositions.Clone();
         public Vector2 CorePosition => corePosition;
@@ -94,7 +96,8 @@ namespace GlassShooter.Gameplay
             float newFragmentAttackMultiplier,
             float newFragmentFallSpeedMultiplier,
             float newMinimumBreakableArea,
-            float newEnemyCrackEnergyCutRate = 0f)
+            float newEnemyCrackEnergyMultiplier = 1f,
+            float newMaximumScanRadius = 20f)
         {
             thickness = Mathf.Max(0.0001f, newThickness);
             density = Mathf.Max(0.0001f, newDensity);
@@ -113,7 +116,35 @@ namespace GlassShooter.Gameplay
             fragmentAttackMultiplier = Mathf.Max(0f, newFragmentAttackMultiplier);
             fragmentFallSpeedMultiplier = Mathf.Max(0f, newFragmentFallSpeedMultiplier);
             minimumBreakableArea = Mathf.Max(0f, newMinimumBreakableArea);
-            enemyCrackEnergyCutRate = Mathf.Clamp01(newEnemyCrackEnergyCutRate);
+            enemyCrackEnergyMultiplier = Mathf.Clamp01(newEnemyCrackEnergyMultiplier);
+            maximumScanRadius = Mathf.Max(0f, newMaximumScanRadius);
+        }
+
+        /// <summary>敵防御を決める3ステータスを一括で反映します。</summary>
+        public void ApplyEnemyDefenseStatus(
+            float newEnemyCrackEnergyMultiplier,
+            int newVirtualPointCount,
+            float newMaximumScanRadius)
+        {
+            enemyCrackEnergyMultiplier = Mathf.Clamp01(newEnemyCrackEnergyMultiplier);
+            virtualPointCount = Mathf.Max(0, newVirtualPointCount);
+            maximumScanRadius = Mathf.Max(0f, newMaximumScanRadius);
+        }
+
+        /// <summary>難易度をwaveとclassへ分解し、敵防御値へ変換します。</summary>
+        public void ApplyEnemyDefenseDifficulty(int difficulty)
+        {
+            int safeDifficulty = Mathf.Max(0, difficulty);
+            int wave = safeDifficulty / 5;
+            int enemyClass = safeDifficulty % 5;
+            int pointCount = 12 + enemyClass * 8 + UnityEngine.Random.Range(-4, 5);
+            int scanRadiusCandidate =
+                5 * enemyClass + UnityEngine.Random.Range(-8, 9);
+
+            ApplyEnemyDefenseStatus(
+                Mathf.Pow(10f, -wave),
+                pointCount,
+                Mathf.Clamp(scanRadiusCandidate, 3f, 20f));
         }
 
         /// <summary>面積から、厚さと密度を反映した破片質量を求めます。</summary>
@@ -261,7 +292,8 @@ namespace GlassShooter.Gameplay
             minimumInitialVulnerability = source.minimumInitialVulnerability;
             maximumInitialVulnerability = source.maximumInitialVulnerability;
             virtualPointCount = source.virtualPointCount;
-            enemyCrackEnergyCutRate = source.enemyCrackEnergyCutRate;
+            enemyCrackEnergyMultiplier = source.enemyCrackEnergyMultiplier;
+            maximumScanRadius = source.maximumScanRadius;
             outlineShape = source.outlineShape;
             fixedPositions = source.fixedPositions == null
                 ? Array.Empty<Vector2>()
@@ -282,7 +314,8 @@ namespace GlassShooter.Gameplay
             elasticity = Mathf.Max(0f, elasticity);
             initialCrackCount = Mathf.Max(0, initialCrackCount);
             virtualPointCount = Mathf.Max(0, virtualPointCount);
-            enemyCrackEnergyCutRate = Mathf.Clamp01(enemyCrackEnergyCutRate);
+            enemyCrackEnergyMultiplier = Mathf.Clamp01(enemyCrackEnergyMultiplier);
+            maximumScanRadius = Mathf.Max(0f, maximumScanRadius);
             minimumBreakableArea = Mathf.Max(0f, minimumBreakableArea);
             minimumInitialVulnerability = Mathf.Clamp01(minimumInitialVulnerability);
             maximumInitialVulnerability = Mathf.Clamp01(maximumInitialVulnerability);

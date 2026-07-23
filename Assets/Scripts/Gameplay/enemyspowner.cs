@@ -1,4 +1,5 @@
 ﻿using GlassShooter.Gameplay;
+using System.Collections.Generic;
 using PolygonRendering;
 using UnityEngine;
 
@@ -9,8 +10,11 @@ namespace Gameplay
     internal class enemyspowner : MonoBehaviour
     {
         public GlassStatus glassStatus;
+        [Min(0)] public int difficulty = 1;
 
         private BossAppearanceManager manager;
+        private readonly List<EnemyDefeatComponent> trackedEnemies =
+            new List<EnemyDefeatComponent>();
 
         private struct SpawnPattern
         {
@@ -112,6 +116,7 @@ namespace Gameplay
         private float _timer;
         private int _currentPatternId = -1;
         private int _lastSpawnedEnemyId = -1;
+        private bool _initialEnemySpawned;
 
         public int CurrentPatternId => _currentPatternId;
         public int LastSpawnedEnemyId => _lastSpawnedEnemyId;
@@ -164,24 +169,70 @@ namespace Gameplay
             TriggerManualSpawn();
             _timer += Time.deltaTime;
 
-            for (int patternIndex = 0; patternIndex < _spawnPatterns.Length; patternIndex++)
+            if (!_initialEnemySpawned &&
+                _spawnPatterns.Length > 0 &&
+                _timer >= _spawnPatterns[0].Time)
             {
-                SpawnPattern pattern = _spawnPatterns[patternIndex];
-                if (pattern.IsActive || _timer < pattern.Time)
-                {
-                    continue;
-                }
-
-                for (int positionIndex = 0; positionIndex < pattern.Positions.Length; positionIndex++)
-                {
-                    _currentPatternId = patternIndex;
-                    SpawnEnemy(pattern.EnemyType, pattern.Positions[positionIndex], positionIndex);
-                }
-
-                pattern.IsActive = true;
-                _spawnPatterns[patternIndex] = pattern;
-                Debug.Log($"Spawning {pattern.EnemyType} at time {_timer}", this);
+                _initialEnemySpawned = true;
+                SpawnEnemyForCurrentDifficulty();
             }
+        }
+
+        private void SpawnEnemyForCurrentDifficulty()
+        {
+            ClearTrackedEnemies();
+            _currentPatternId = difficulty;
+            string enemyType = difficulty % 5 == 0
+                ? "Boss_A_core"
+                : "Basic";
+            GameObject enemy = SpawnEnemy(enemyType, new Vector2(0f, 4f), 0);
+            TrackEnemy(enemy);
+            Debug.Log($"Spawning {enemyType} at difficulty {difficulty}", this);
+        }
+
+        private void TrackEnemy(GameObject enemy)
+        {
+            if (enemy == null || !enemy.TryGetComponent(out EnemyDefeatComponent defeat))
+            {
+                Debug.LogError("Spawned enemy has no EnemyDefeatComponent.", this);
+                return;
+            }
+
+            defeat.Defeated += OnEnemyDefeated;
+            trackedEnemies.Add(defeat);
+        }
+
+        private void OnEnemyDefeated()
+        {
+            if (difficulty < int.MaxValue)
+            {
+                difficulty++;
+            }
+
+            ClearTrackedEnemies();
+            SpawnEnemyForCurrentDifficulty();
+        }
+
+        private void ClearTrackedEnemies()
+        {
+            for (int i = 0; i < trackedEnemies.Count; i++)
+            {
+                if (trackedEnemies[i] != null)
+                {
+                    trackedEnemies[i].Defeated -= OnEnemyDefeated;
+                }
+            }
+            trackedEnemies.Clear();
+        }
+
+        private void OnDestroy()
+        {
+            ClearTrackedEnemies();
+        }
+
+        private void OnValidate()
+        {
+            difficulty = Mathf.Max(0, difficulty);
         }
 
         private GameObject SpawnEnemy(string enemyType, Vector2 localPosition, int positionIndex)
@@ -235,6 +286,12 @@ namespace Gameplay
                 ? existingStatus
                 : obj.AddComponent<GlassStatus>();
             spawnedStatus.CopyFrom(glassStatus);
+            spawnedStatus.ApplyEnemyDefenseDifficulty(difficulty);
+
+            if (!obj.TryGetComponent(out EnemyDefeatComponent _))
+            {
+                obj.AddComponent<EnemyDefeatComponent>();
+            }
 
             // 子の描画とColliderを作った後に追加すると、Awakeで参照を自動取得できます。
             CrackProcessingComponent processing = obj.AddComponent<CrackProcessingComponent>();

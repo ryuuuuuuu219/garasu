@@ -20,6 +20,7 @@ namespace GlassShooter.Gameplay
         [SerializeField] private GlassSurfaceLineRenderer outlineLineRenderer = null;
         [SerializeField] private CrackLineRenderer crackLineRenderer = null;
         [SerializeField] private GlassStatus glassStatus = null;
+        [SerializeField] private EnemyDefeatComponent enemyDefeat = null;
 
         [Header("Feature Components")]
         [SerializeField] private CrackGrowthComponent growthComponent = null;
@@ -73,11 +74,14 @@ namespace GlassShooter.Gameplay
         public GlassSurfaceLineRenderer OutlineLineRenderer => outlineLineRenderer;
         public CrackLineRenderer CrackLineRenderer => crackLineRenderer;
         public GlassStatus GlassStatus => glassStatus;
+        public EnemyDefeatComponent EnemyDefeat => enemyDefeat;
         public Vector2[] Outline => (Vector2[])outline.Clone();
         public Vector2[] InitialCrackPoints => (Vector2[])initCrackPoint.Clone();
         public IReadOnlyList<Vector2[]> Cracks => cracks;
         public float MinimumScanRadius => minimumScanRadius;
-        public float MaximumScanRadius => maximumScanRadius;
+        public float MaximumScanRadius => glassStatus != null
+            ? glassStatus.MaximumScanRadius
+            : maximumScanRadius;
         public CrackGrowthComponent GrowthComponent => growthComponent;
         public CrackFragmentationComponent FragmentationComponent => fragmentationComponent;
 
@@ -220,6 +224,10 @@ namespace GlassShooter.Gameplay
             }
 
             RenderCracks();
+            if (enemyDefeat != null)
+            {
+                EnsureCrackGraphInitialized();
+            }
         }
 
         private void ApplyAnchorState()
