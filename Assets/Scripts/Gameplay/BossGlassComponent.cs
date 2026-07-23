@@ -29,6 +29,7 @@ namespace GlassShooter.Gameplay
         }
 
         [SerializeField] private List<ModuleDetail> modules = new List<ModuleDetail>();
+        [SerializeField, Min(0.01f)] private float inviolableAreaRadius = 6f;
 
         public IReadOnlyList<ModuleDetail> Modules => modules;
 
@@ -42,6 +43,12 @@ namespace GlassShooter.Gameplay
 
         private void Start()
         {
+            PlayerOnlyCircularCollider inviolableArea =
+                TryGetComponent(out PlayerOnlyCircularCollider existingArea)
+                    ? existingArea
+                    : gameObject.AddComponent<PlayerOnlyCircularCollider>();
+            inviolableArea.SetRadius(inviolableAreaRadius);
+
             BossAppearanceManager appearanceManager =
                 GetComponentInParent<BossAppearanceManager>();
             if (appearanceManager == null)

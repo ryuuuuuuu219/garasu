@@ -1,4 +1,5 @@
 ﻿using GlassShooter.Gameplay;
+using System.Collections;
 using System.Collections.Generic;
 using PolygonRendering;
 using UnityEngine;
@@ -18,6 +19,7 @@ namespace Gameplay
         [SerializeField, Min(0.01f)] private float repulsionDuration = 1.5f;
 
         private BossAppearanceManager manager;
+        private Coroutine delayedSpawn;
         private readonly List<EnemyDefeatComponent> trackedEnemies =
             new List<EnemyDefeatComponent>();
 
@@ -187,6 +189,12 @@ namespace Gameplay
 
         private void SpawnEnemyForCurrentDifficulty()
         {
+            if (delayedSpawn != null)
+            {
+                StopCoroutine(delayedSpawn);
+                delayedSpawn = null;
+            }
+
             ClearTrackedEnemies();
             _currentPatternId = difficulty;
             string enemyType = difficulty % 5 == 0
@@ -212,12 +220,24 @@ namespace Gameplay
 
         private void OnEnemyDefeated()
         {
+            if (delayedSpawn != null)
+            {
+                return;
+            }
+
             if (difficulty < int.MaxValue)
             {
                 difficulty++;
             }
 
             ClearTrackedEnemies();
+            delayedSpawn = StartCoroutine(SpawnEnemyAfterDefeatDelay());
+        }
+
+        private IEnumerator SpawnEnemyAfterDefeatDelay()
+        {
+            yield return new WaitForSeconds(1f);
+            delayedSpawn = null;
             SpawnEnemyForCurrentDifficulty();
         }
 
@@ -235,6 +255,11 @@ namespace Gameplay
 
         private void OnDestroy()
         {
+            if (delayedSpawn != null)
+            {
+                StopCoroutine(delayedSpawn);
+                delayedSpawn = null;
+            }
             ClearTrackedEnemies();
         }
 
