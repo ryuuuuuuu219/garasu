@@ -80,12 +80,14 @@ namespace GlassShooter.Gameplay
 
         private void Update()
         {
-            if (inputState.SpaceDown && Time.time >= nextFireTime)
+            if (Input.GetKey(KeyCode.Space) && Time.time >= nextFireTime)
             {
                 Fire();
             }
 
+#if UNITY_EDITOR
             Debug_impactFromMouse();
+#endif
             chaseCamera();
 
         }
@@ -180,6 +182,7 @@ namespace GlassShooter.Gameplay
             line.sortingOrder = -100;
         }
 
+#if UNITY_EDITOR
         void Debug_impactFromMouse()
         {
             if (Input.GetMouseButtonDown(0))
@@ -202,6 +205,7 @@ namespace GlassShooter.Gameplay
                 copy.CopyFrom(bulletStatus);
             }
         }
+#endif
 
         private void Move()
         {

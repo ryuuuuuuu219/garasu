@@ -7,7 +7,7 @@ namespace Gameplay
     [DisallowMultipleComponent]
     public sealed class battery_A : MonoBehaviour
     {
-        [SerializeField, Min(0.01f)] private float fireInterval = 0.1f;
+        [SerializeField, Min(0.01f)] private float fireInterval = 0.4f;
         [SerializeField, Min(0f)] private float spawnDistance = 2f;
         [SerializeField, Min(0f)] private float projectileSpeed = 0.6f;
 
