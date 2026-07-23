@@ -75,12 +75,11 @@ namespace GlassShooter.Gameplay
             lr.material = new Material(Shader.Find("Sprites/Default"));
             lr.startWidth = 0.05f;
             lr.endWidth = 0.05f;
+            RenderMovementLimit();
         }
 
         private void Update()
         {
-            RenderMovementLimit();
-
             if (inputState.SpaceDown && Time.time >= nextFireTime)
             {
                 Fire();
@@ -206,11 +205,49 @@ namespace GlassShooter.Gameplay
 
         private void Move()
         {
+            Vector2 inputDirection = inputState.ArrowDirection;
+            if (inputDirection.sqrMagnitude > 1f)
+            {
+                inputDirection.Normalize();
+            }
+
+            Vector2 inputVelocity = inputDirection * moveSpeed;
+            ClampMovementToBounds(ref inputVelocity);
+            playerRigidbody.linearVelocity = inputVelocity;
+        }
+
+        /// <summary>
+        /// 不可侵領域など、入力より優先する効果で現在速度を上書きします。
+        /// </summary>
+        public void OverrideMovementVelocity(Vector2 velocity)
+        {
+            playerRigidbody.linearVelocity = velocity;
+        }
+
+        private void ClampMovementToBounds(ref Vector2 velocity)
+        {
             Vector2 position = playerRigidbody.position;
-            position += inputState.ArrowDirection * moveSpeed * Time.fixedDeltaTime;
-            position.x = Mathf.Clamp(position.x, Movelimitmin.x, Movelimitmax.x);
-            position.y = Mathf.Clamp(position.y, Movelimitmin.y, Movelimitmax.y);
-            playerRigidbody.MovePosition(position);
+            Vector2 clampedPosition = new Vector2(
+                Mathf.Clamp(position.x, Movelimitmin.x, Movelimitmax.x),
+                Mathf.Clamp(position.y, Movelimitmin.y, Movelimitmax.y));
+
+            if (position != clampedPosition)
+            {
+                playerRigidbody.position = clampedPosition;
+                position = clampedPosition;
+            }
+
+            if ((position.x <= Movelimitmin.x && velocity.x < 0f) ||
+                (position.x >= Movelimitmax.x && velocity.x > 0f))
+            {
+                velocity.x = 0f;
+            }
+
+            if ((position.y <= Movelimitmin.y && velocity.y < 0f) ||
+                (position.y >= Movelimitmax.y && velocity.y > 0f))
+            {
+                velocity.y = 0f;
+            }
         }
 
         private void RenderMovementLimit()

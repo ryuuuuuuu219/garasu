@@ -590,7 +590,7 @@ namespace GlassShooter.Gameplay
 
             ResourceUIManager.Instance?.ShowFragmentScore(
                 gameObject,
-                glassStatus != null ? glassStatus.resourceRewardArea : 0f);
+                glassStatus != null ? glassStatus.ResourceReward : 0f);
 
             // 同じGameObjectが次の着弾でさらに分割できるよう再入防止を解除する。
             isSeparating = false;
@@ -709,7 +709,7 @@ namespace GlassShooter.Gameplay
 
             ResourceUIManager.Instance?.ShowFragmentScore(
                 fragment,
-                fragmentStatus.resourceRewardArea);
+                fragmentStatus.ResourceReward);
 
             return fragment;
         }

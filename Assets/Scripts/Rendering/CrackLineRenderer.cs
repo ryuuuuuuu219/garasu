@@ -23,6 +23,7 @@ namespace PolygonRendering
         [SerializeField] private int sortingOrder = 1;
 
         private readonly List<LineRenderer> lineRenderers = new List<LineRenderer>();
+        private bool rendererCacheInitialized;
 
         public IReadOnlyList<LineRenderer> LineRenderers => lineRenderers;
 
@@ -96,7 +97,6 @@ namespace PolygonRendering
                 }
 
                 Vector2[] points = cracks[i];
-                ConfigureRenderer(renderer);
                 renderer.positionCount = points.Length;
                 for (int pointIndex = 0; pointIndex < points.Length; pointIndex++)
                 {
@@ -108,6 +108,8 @@ namespace PolygonRendering
         [ContextMenu("Rebuild Crack")]
         public void Rebuild()
         {
+            // Inspector変更や手動Rebuildでは、描画設定も全Rendererへ反映し直す。
+            rendererCacheInitialized = false;
             if (crackPoints == null || crackPoints.Length == 0)
             {
                 SetCracks(Array.Empty<Vector2[]>());
@@ -121,29 +123,14 @@ namespace PolygonRendering
         {
             requiredCount = Mathf.Max(1, requiredCount);
 
-            // Renderer系は同一GameObjectへ複数追加できないため、先頭以外は子Objectで管理する。
-            lineRenderers.Clear();
-            LineRenderer rootRenderer = GetComponent<LineRenderer>();
-            if (rootRenderer != null)
+            if (!rendererCacheInitialized || HasMissingCachedRenderer())
             {
-                lineRenderers.Add(rootRenderer);
+                RebuildRendererCache();
             }
 
-            for (int childIndex = 0; childIndex < transform.childCount; childIndex++)
-            {
-                Transform child = transform.GetChild(childIndex);
-                if (!child.name.StartsWith("CrackLine_", StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
-                LineRenderer childRenderer = child.GetComponent<LineRenderer>();
-                if (childRenderer != null)
-                {
-                    lineRenderers.Add(childRenderer);
-                }
-            }
-
+            LineRenderer rootRenderer = lineRenderers.Count > 0
+                ? lineRenderers[0]
+                : null;
             while (lineRenderers.Count < requiredCount)
             {
                 int rendererIndex = lineRenderers.Count;
@@ -168,13 +155,61 @@ namespace PolygonRendering
                 {
                     created.sharedMaterial = rootRenderer.sharedMaterial;
                 }
+                ConfigureRenderer(created);
                 lineRenderers.Add(created);
+            }
+
+            rendererCacheInitialized = true;
+        }
+
+        private void RebuildRendererCache()
+        {
+            // Renderer系は同一GameObjectへ複数追加できないため、先頭以外は子Objectで管理する。
+            lineRenderers.Clear();
+            LineRenderer rootRenderer = GetComponent<LineRenderer>();
+            if (rootRenderer != null)
+            {
+                lineRenderers.Add(rootRenderer);
+            }
+
+            for (int childIndex = 0; childIndex < transform.childCount; childIndex++)
+            {
+                Transform child = transform.GetChild(childIndex);
+                if (!child.name.StartsWith("CrackLine_", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                LineRenderer childRenderer = child.GetComponent<LineRenderer>();
+                if (childRenderer != null)
+                {
+                    lineRenderers.Add(childRenderer);
+                }
             }
 
             for (int i = 0; i < lineRenderers.Count; i++)
             {
                 ConfigureRenderer(lineRenderers[i]);
             }
+
+            rendererCacheInitialized = true;
+        }
+
+        private bool HasMissingCachedRenderer()
+        {
+            for (int i = 0; i < lineRenderers.Count; i++)
+            {
+                if (lineRenderers[i] == null)
+                {
+                    return true;
+                }
+            }
+            return lineRenderers.Count == 0;
+        }
+
+        private void OnTransformChildrenChanged()
+        {
+            rendererCacheInitialized = false;
         }
 
         private void ConfigureRenderer(LineRenderer renderer)

@@ -4,25 +4,32 @@ namespace GlassShooter.Gameplay
 {
     /// <summary>
     /// 所有者を中心とする円形の不可侵領域です。
-    /// プレイヤーだけを円外へ押し戻し、弾やガラスの物理挙動には干渉しません。
+    /// プレイヤーが範囲内へ入ると、速度を外向きへ上書きします。
+    /// 弾やガラスの物理挙動には干渉しません。
     /// </summary>
     [DisallowMultipleComponent]
+    [DefaultExecutionOrder(100)]
     public sealed class PlayerOnlyCircularCollider : MonoBehaviour
     {
+        private const int BoundarySegmentCount = 96;
+        private const float BoundaryLineWidth = 0.04f;
+
         [SerializeField, Min(0.01f)] private float radius = 6f;
         [SerializeField, Min(0f)] private float radiusOscillationAmplitude = 2f;
-        [SerializeField, Min(0f)] private float playerImpulse = 2f;
-        [SerializeField, HideInInspector] private CircleCollider2D areaCollider;
+        [UnityEngine.Serialization.FormerlySerializedAs("playerImpulse")]
+        [SerializeField, Min(0f)] private float repulsionSpeed = 2f;
+        [SerializeField, Min(0f)] private float releaseMargin = 0.1f;
 
-        public GameObject areaObject;
         public GameObject player;
 
         private EnemyDefeatComponent defeatState;
+        private PlayerShooterController playerController;
         private Rigidbody2D playerBody;
-        private Collider2D playerCollider;
+        private LineRenderer boundaryLine;
+        private Material boundaryMaterial;
+        private bool isRepelling;
 
         public float Radius => radius;
-        public CircleCollider2D AreaCollider => areaCollider;
 
         private void Awake()
         {
@@ -32,73 +39,91 @@ namespace GlassShooter.Gameplay
                 defeatState.Defeated += DisableArea;
             }
 
-            EnsureAreaCollider();
+            CreateBoundaryLine();
         }
 
         private void OnEnable()
         {
-            EnsureAreaCollider();
             bool canActivate = defeatState == null || !defeatState.IsDefeated;
-            areaCollider.gameObject.SetActive(canActivate);
-            SyncAreaTransform();
+            if (boundaryLine != null)
+            {
+                boundaryLine.enabled = canActivate;
+            }
+            enabled = canActivate;
+            isRepelling = false;
+        }
+
+        private void Update()
+        {
+            UpdateBoundaryLine(CalculateCurrentRadius());
         }
 
         private void FixedUpdate()
         {
-            if (areaCollider == null ||
-                defeatState != null && defeatState.IsDefeated)
+            if (defeatState != null && defeatState.IsDefeated)
             {
                 return;
             }
 
-            SyncAreaTransform();
-            UpdateOscillatingRadius();
             ResolvePlayer();
-            RepelPlayer();
+            RepelPlayer(CalculateCurrentRadius());
         }
 
         public void SetRadius(float newRadius)
         {
             radius = Mathf.Max(0.01f, newRadius);
-            EnsureAreaCollider();
-            areaCollider.radius = radius;
+            UpdateBoundaryLine(CalculateCurrentRadius());
         }
 
-        private void EnsureAreaCollider()
+        private void CreateBoundaryLine()
         {
-            if (areaCollider != null)
+            GameObject lineObject = new GameObject("InviolableAreaBoundary");
+            lineObject.transform.SetParent(transform, false);
+
+            boundaryLine = lineObject.AddComponent<LineRenderer>();
+            boundaryLine.useWorldSpace = true;
+            boundaryLine.loop = true;
+            boundaryLine.positionCount = BoundarySegmentCount;
+            boundaryLine.startWidth = BoundaryLineWidth;
+            boundaryLine.endWidth = BoundaryLineWidth;
+            boundaryLine.startColor = Color.white;
+            boundaryLine.endColor = Color.white;
+            boundaryLine.sortingOrder = 10;
+
+            Shader shader = Shader.Find("Sprites/Default");
+            if (shader != null)
             {
-                areaCollider.radius = radius;
-                areaCollider.isTrigger = true;
+                boundaryMaterial = new Material(shader);
+                boundaryLine.sharedMaterial = boundaryMaterial;
+            }
+
+            UpdateBoundaryLine(CalculateCurrentRadius());
+        }
+
+        private void UpdateBoundaryLine(float currentRadius)
+        {
+            if (boundaryLine == null)
+            {
                 return;
             }
 
-            areaObject = new GameObject(
-                $"{name}_PlayerOnlyInviolableArea");
-            areaObject.transform.position = transform.position;
-            areaCollider = areaObject.AddComponent<CircleCollider2D>();
-            areaCollider.radius = radius;
-            areaCollider.isTrigger = true;
-        }
-
-        private void SyncAreaTransform()
-        {
-            if (areaCollider == null)
+            Vector3 center = transform.position;
+            for (int index = 0; index < BoundarySegmentCount; index++)
             {
-                return;
+                float angle =
+                    2f * Mathf.PI * index / BoundarySegmentCount;
+                Vector3 point = center + new Vector3(
+                    Mathf.Cos(angle) * currentRadius,
+                    Mathf.Sin(angle) * currentRadius,
+                    0f);
+                boundaryLine.SetPosition(index, point);
             }
-
-            Transform areaTransform = areaCollider.transform;
-            areaTransform.position = transform.position;
-            areaTransform.rotation = Quaternion.identity;
-            areaTransform.localScale = Vector3.one;
         }
 
         private void ResolvePlayer()
         {
             if (player != null &&
                 playerBody != null &&
-                playerCollider != null &&
                 playerBody.gameObject == player)
             {
                 return;
@@ -114,59 +139,75 @@ namespace GlassShooter.Gameplay
             if (player == null)
             {
                 playerBody = null;
-                playerCollider = null;
+                playerController = null;
+                isRepelling = false;
                 return;
             }
 
+            playerController = player.GetComponent<PlayerShooterController>();
             playerBody = player.GetComponent<Rigidbody2D>();
-            playerCollider = player.GetComponent<Collider2D>();
         }
 
-        private void UpdateOscillatingRadius()
+        private float CalculateCurrentRadius()
         {
-            float currentRadius =
-                radius + Mathf.Sin(Time.time) * radiusOscillationAmplitude;
-            areaCollider.radius = Mathf.Max(0.01f, currentRadius);
+            return Mathf.Max(
+                0.01f,
+                radius + Mathf.Sin(Time.time) * radiusOscillationAmplitude);
         }
 
-        private void RepelPlayer()
+        private void RepelPlayer(float currentRadius)
         {
-            if (playerBody == null || playerCollider == null)
+            if (playerBody == null)
             {
                 return;
             }
 
             Vector2 center = transform.position;
             Vector2 offset = playerBody.position - center;
-            float playerClearance = playerCollider.bounds.extents.magnitude;
-            float minimumDistance = areaCollider.radius + playerClearance;
-            if (offset.sqrMagnitude >= minimumDistance * minimumDistance)
+            float distance = offset.magnitude;
+
+            if (!isRepelling && distance < currentRadius)
+            {
+                isRepelling = true;
+            }
+            else if (isRepelling &&
+                distance >= currentRadius + releaseMargin)
+            {
+                isRepelling = false;
+            }
+
+            if (!isRepelling)
             {
                 return;
             }
 
-            Vector2 direction = offset.sqrMagnitude > Mathf.Epsilon
-                ? offset.normalized
+            Vector2 direction = distance > Mathf.Epsilon
+                ? offset / distance
                 : Vector2.down;
-            playerBody.AddForce(
-                direction * playerImpulse,
-                ForceMode2D.Impulse);
+            Vector2 repulsionVelocity = direction * repulsionSpeed;
+
+            if (playerController != null)
+            {
+                playerController.OverrideMovementVelocity(repulsionVelocity);
+            }
+            else
+            {
+                playerBody.linearVelocity = repulsionVelocity;
+            }
         }
 
         private void DisableArea()
         {
-            if (areaCollider != null)
-            {
-                areaCollider.gameObject.SetActive(false);
-            }
+            isRepelling = false;
             enabled = false;
         }
 
         private void OnDisable()
         {
-            if (areaCollider != null)
+            isRepelling = false;
+            if (boundaryLine != null)
             {
-                areaCollider.gameObject.SetActive(false);
+                boundaryLine.enabled = false;
             }
         }
 
@@ -176,9 +217,9 @@ namespace GlassShooter.Gameplay
             {
                 defeatState.Defeated -= DisableArea;
             }
-            if (areaCollider != null)
+            if (boundaryMaterial != null)
             {
-                Destroy(areaCollider.gameObject);
+                Destroy(boundaryMaterial);
             }
         }
     }

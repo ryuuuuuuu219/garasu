@@ -97,6 +97,10 @@ namespace GlassShooter.Gameplay
                 float crackScore = CalculateWorldCrackLength(
                     candidate.from.localPosition,
                     candidate.to.localPosition);
+                if (glassStatus != null)
+                {
+                    crackScore = glassStatus.CalculateResourceReward(crackScore);
+                }
                 ResourceComponent.Instance.Add(crackScore);
                 Vector2 localMidpoint =
                     (candidate.from.localPosition + candidate.to.localPosition) * 0.5f;

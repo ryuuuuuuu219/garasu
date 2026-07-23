@@ -10,6 +10,14 @@ namespace Gameplay
     [RequireComponent(typeof(BossAppearanceManager))]
     internal class enemyspowner : MonoBehaviour
     {
+        private static readonly Vector2[] DiamondProjectileOutline =
+        {
+            new Vector2(0f, 0.5f),
+            new Vector2(0.2f, 0f),
+            new Vector2(0f, -0.5f),
+            new Vector2(-0.2f, 0f)
+        };
+
         public GlassStatus glassStatus;
         [Min(0)] public int difficulty = 1;
 
@@ -59,6 +67,7 @@ namespace Gameplay
                 case "Boss_A_armor":
                     return CreateMultiLayerPositions(12, 3f, 0f, 12, 1f, 0f);
                 case "Boss_A_core":
+                case "battery_A":
                     return CreateRegularPolygonPositions(6, 1f, 0f);
 
 
@@ -197,9 +206,19 @@ namespace Gameplay
 
             ClearTrackedEnemies();
             _currentPatternId = difficulty;
-            string enemyType = difficulty % 5 == 0
-                ? "Boss_A_core"
-                : "Basic";
+            string enemyType = "Basic";
+            if (difficulty % 5 == 0)
+            {
+                switch (difficulty / 5 % 2)
+                {
+                    case 0:
+                        enemyType = "Boss_A_core";
+                        break;
+                    case 1:
+                        enemyType = "battery_A";
+                        break;
+                }
+            }
             GameObject enemy = SpawnEnemy(enemyType, new Vector2(0f, 4f), 0);
             TrackEnemy(enemy);
             CreateSpawnRepulsionField(enemy);
@@ -286,6 +305,11 @@ namespace Gameplay
                     boss.AddModule(armor, 3f);
                     manager.apperdelay(enemy);
                     break;
+                case "battery_A":
+                    battery_A battery = enemy.AddComponent<battery_A>();
+                    battery.Initialize(this);
+                    manager.apperdelay(enemy);
+                    break;
             }
 
             return enemy;
@@ -314,7 +338,57 @@ namespace Gameplay
 
         public void Init(GameObject obj, Vector2[] outlinePoints)
         {
+            InitializeGlassObject(obj, outlinePoints, true, false);
+        }
 
+        /// <summary>
+        /// 指定形状の妨害用ガラスをワールド座標へ生成します。
+        /// 初速を省略した場合は静止状態で生成されます。
+        /// </summary>
+        public GameObject SpawnInterferenceObject(
+            Vector2[] outlinePoints,
+            Vector2 worldPosition,
+            float zRotationDegrees,
+            Vector2 initialVelocity = default)
+        {
+            if (outlinePoints == null || outlinePoints.Length < 3)
+            {
+                Debug.LogError(
+                    "Interference object requires at least three outline points.",
+                    this);
+                return null;
+            }
+
+            GameObject obj = new GameObject("EnemyInterferenceObject");
+            Rigidbody2D body = obj.AddComponent<Rigidbody2D>();
+            body.bodyType = RigidbodyType2D.Dynamic;
+            body.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+            body.interpolation = RigidbodyInterpolation2D.Interpolate;
+
+            InitializeGlassObject(obj, outlinePoints, false, true);
+            obj.transform.SetPositionAndRotation(
+                new Vector3(worldPosition.x, worldPosition.y, 0f),
+                Quaternion.Euler(0f, 0f, zRotationDegrees));
+
+            GlassStatus status = obj.GetComponent<GlassStatus>();
+            status.SetEnemyCrackEnergySuppressed(true);
+            body.mass = status.CalculateMass(Mathf.Abs(CalculateSignedArea(outlinePoints)));
+            body.linearVelocity = initialVelocity;
+            return obj;
+        }
+
+        /// <summary>対角線長1、0.4のひし形弾のローカル頂点を返します。</summary>
+        public static Vector2[] GetDiamondProjectileOutline()
+        {
+            return (Vector2[])DiamondProjectileOutline.Clone();
+        }
+
+        private void InitializeGlassObject(
+            GameObject obj,
+            Vector2[] outlinePoints,
+            bool addEnemyDefeat,
+            bool releasedFromAnchor)
+        {
             obj.transform.SetParent(transform, false);
 
             GameObject outlineObject = new GameObject("GlassSurfaceLineRenderer");
@@ -342,14 +416,15 @@ namespace Gameplay
             spawnedStatus.CopyFrom(glassStatus);
             spawnedStatus.ApplyEnemyDefenseDifficulty(difficulty);
 
-            if (!obj.TryGetComponent(out EnemyDefeatComponent _))
+            if (addEnemyDefeat &&
+                !obj.TryGetComponent(out EnemyDefeatComponent _))
             {
                 obj.AddComponent<EnemyDefeatComponent>();
             }
 
             // 子の描画とColliderを作った後に追加すると、Awakeで参照を自動取得できます。
             CrackProcessingComponent processing = obj.AddComponent<CrackProcessingComponent>();
-            processing.Initialize(outlinePoints);
+            processing.Initialize(outlinePoints, null, releasedFromAnchor);
         }
 
         public string BuildPatternCompositionSummary()

@@ -27,6 +27,8 @@ namespace GlassShooter.Gameplay
     [DisallowMultipleComponent]
     public sealed class GlassStatus : MonoBehaviour
     {
+        private const float MinimumRewardEnergyMultiplier = 0.001f;
+
         [Header("Basic Physical Properties")]
         [SerializeField, Min(0.0001f)] private float thickness = 1f;
         [SerializeField, Min(0.0001f)] private float density = 1f;
@@ -41,6 +43,7 @@ namespace GlassShooter.Gameplay
         [SerializeField, Min(0)] private int virtualPointCount = 32;
         [SerializeField, Range(0f, 1f)] private float enemyCrackEnergyMultiplier = 1f;
         [SerializeField, Min(0f)] private float maximumScanRadius = 20f;
+        private bool isEnemyCrackEnergySuppressed;
 
         [Header("Structure")]
         [SerializeField] private GlassOutlineShape outlineShape = GlassOutlineShape.Rectangle;
@@ -65,7 +68,8 @@ namespace GlassShooter.Gameplay
         public float MinimumInitialVulnerability => minimumInitialVulnerability;
         public float MaximumInitialVulnerability => maximumInitialVulnerability;
         public int VirtualPointCount => virtualPointCount;
-        public float EnemyCrackEnergyMultiplier => enemyCrackEnergyMultiplier;
+        public float EnemyCrackEnergyMultiplier =>
+            isEnemyCrackEnergySuppressed ? 0f : enemyCrackEnergyMultiplier;
         public float MaximumScanRadius => maximumScanRadius;
         public GlassOutlineShape OutlineShape => outlineShape;
         public Vector2[] FixedPositions => (Vector2[])fixedPositions.Clone();
@@ -73,12 +77,32 @@ namespace GlassShooter.Gameplay
         public float FixedPositionStrength => fixedPositionStrength;
         public float FragmentAttackMultiplier => fragmentAttackMultiplier;
         public float FragmentFallSpeedMultiplier => fragmentFallSpeedMultiplier;
+        public float ResourceRewardMultiplier =>
+            1f + Mathf.Log10(
+                1f / Mathf.Max(enemyCrackEnergyMultiplier, MinimumRewardEnergyMultiplier));
+        public float ResourceReward => CalculateResourceReward(resourceRewardArea);
+
+        /// <summary>
+        /// 妨害中は敵の亀裂エネルギー倍率を0にします。
+        /// falseを渡すと、妨害前の設定倍率へ戻ります。
+        /// </summary>
+        public void SetEnemyCrackEnergySuppressed(bool isSuppressed)
+        {
+            isEnemyCrackEnergySuppressed = isSuppressed;
+        }
 
         public void SetResourceRewardArea(float area)
         {
             resourceRewardArea = Mathf.Max(0f, area);
             resourceRewardGranted = false;
         }
+
+        /// <summary>敵の基礎亀裂エネルギー倍率から資源報酬を補正します。</summary>
+        public float CalculateResourceReward(float baseReward)
+        {
+            return Mathf.Max(0f, baseReward) * ResourceRewardMultiplier;
+        }
+
         public float MinimumBreakableArea => minimumBreakableArea;
 
         /// <summary>成長画面で確定したガラスステータスを反映します。</summary>
@@ -293,6 +317,7 @@ namespace GlassShooter.Gameplay
             maximumInitialVulnerability = source.maximumInitialVulnerability;
             virtualPointCount = source.virtualPointCount;
             enemyCrackEnergyMultiplier = source.enemyCrackEnergyMultiplier;
+            isEnemyCrackEnergySuppressed = source.isEnemyCrackEnergySuppressed;
             maximumScanRadius = source.maximumScanRadius;
             outlineShape = source.outlineShape;
             fixedPositions = source.fixedPositions == null
@@ -333,7 +358,7 @@ namespace GlassShooter.Gameplay
             if (!resourceRewardGranted && resourceRewardArea > 0f)
             {
                 resourceRewardGranted = true;
-                ResourceComponent.Instance.Add(resourceRewardArea);
+                ResourceComponent.Instance.Add(ResourceReward);
             }
             Destroy(gameObject);
         }

@@ -142,8 +142,6 @@ namespace GlassShooter.Gameplay
                 return;
             }
 
-            Debug.Log("1");
-
             EnsureCrackGraphInitialized();
             float enemyEnergyMultiplier = glassStatus != null
                 ? glassStatus.EnemyCrackEnergyMultiplier
@@ -209,7 +207,6 @@ namespace GlassShooter.Gameplay
             // 外周同士を結ぶ連続クラックが完成した場合だけ既存の破片分離へ渡す。
             TrySeparateCompletedPath();
 
-            Debug.Log("2");
         }
 
         private bool ApplySizeMultiplier(float multiplier)
@@ -257,7 +254,6 @@ namespace GlassShooter.Gameplay
                     ? glassStatus.CalculateMass(scaledArea)
                     : Mathf.Max(0.05f, scaledArea);
             }
-            RenderCracks();
             return true;
         }
 

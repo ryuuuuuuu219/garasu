@@ -11,6 +11,8 @@ namespace Gameplay
     [AddComponentMenu("Scripts/Gameplay/Glass Calculation Verifier")]
     public sealed class GlassCalculationVerifier : MonoBehaviour
     {
+        private const float RuntimeRefreshInterval = 0.25f;
+
         [Header("References")]
         [SerializeField] private PlayerShooterController player = null;
         [SerializeField] private BulletStatus bullet = null;
@@ -19,6 +21,9 @@ namespace Gameplay
 
         [Header("Calculated Report")]
         [SerializeField, TextArea(18, 40)] private string report = string.Empty;
+
+        private enemyspowner spawner;
+        private float nextRuntimeRefreshTime;
 
         public string Report => report;
 
@@ -32,6 +37,7 @@ namespace Gameplay
         {
             FindReferences();
             RefreshReport();
+            nextRuntimeRefreshTime = Time.unscaledTime + RuntimeRefreshInterval;
         }
 
         private void OnValidate()
@@ -42,8 +48,11 @@ namespace Gameplay
 
         private void Update()
         {
-            if (Application.isPlaying)
+            if (Application.isPlaying &&
+                Time.unscaledTime >= nextRuntimeRefreshTime)
             {
+                nextRuntimeRefreshTime =
+                    Time.unscaledTime + RuntimeRefreshInterval;
                 RefreshReport();
             }
         }
@@ -51,7 +60,7 @@ namespace Gameplay
         [ContextMenu("検算結果を更新")]
         public void RefreshReport()
         {
-            if (!TryGetComponent(out enemyspowner spawner))
+            if (spawner == null && !TryGetComponent(out spawner))
             {
                 report = "enemyspownerが見つかりません。";
                 return;

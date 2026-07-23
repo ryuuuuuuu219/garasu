@@ -15,6 +15,7 @@ namespace GlassShooter.Gameplay
         public float DestroyY => destroyY;
 
         private Rigidbody2D projectileRigidbody;
+        private BulletStatus cachedBulletStatus;
         private bool consumed;
 
         private void Awake()
@@ -28,14 +29,15 @@ namespace GlassShooter.Gameplay
             projectileRigidbody.gravityScale = 0f;
             projectileRigidbody.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
             projectileRigidbody.interpolation = RigidbodyInterpolation2D.Interpolate;
+            TryGetComponent(out cachedBulletStatus);
         }
 
         private void FixedUpdate()
         {
             Vector2 velocity = Vector2.up * speed;
-            if (TryGetComponent(out BulletStatus bulletStatus))
+            if (ResolveBulletStatus())
             {
-                velocity = bulletStatus.CurrentVelocity;
+                velocity = cachedBulletStatus.CurrentVelocity;
             }
 
             Vector2 nextPosition = projectileRigidbody.position + velocity * Time.fixedDeltaTime;
@@ -114,10 +116,11 @@ namespace GlassShooter.Gameplay
                 fragmentTarget = other.GetComponentInParent<GlassFragment>();
             }
             if ((crackTarget == null && fragmentTarget == null) ||
-                !TryGetComponent(out bulletStatus))
+                !ResolveBulletStatus())
             {
                 return false;
             }
+            bulletStatus = cachedBulletStatus;
 
             // Destroyはフレーム終端まで遅延するため、対象処理より先に再入を禁止する。
             consumed = true;
@@ -126,6 +129,12 @@ namespace GlassShooter.Gameplay
                 projectileCollider.enabled = false;
             }
             return true;
+        }
+
+        private bool ResolveBulletStatus()
+        {
+            return cachedBulletStatus != null ||
+                TryGetComponent(out cachedBulletStatus);
         }
     }
 }
