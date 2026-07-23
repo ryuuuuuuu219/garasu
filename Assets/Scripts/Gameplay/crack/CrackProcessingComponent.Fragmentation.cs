@@ -588,9 +588,12 @@ namespace GlassShooter.Gameplay
                 gameObject.AddComponent<GlassFragment>();
             }
 
-            ResourceUIManager.Instance?.ShowFragmentScore(
-                gameObject,
-                glassStatus != null ? glassStatus.ResourceReward : 0f);
+            if (glassStatus == null || !glassStatus.IsResourceRewardSuppressed)
+            {
+                ResourceUIManager.Instance?.ShowFragmentScore(
+                    gameObject,
+                    glassStatus != null ? glassStatus.ResourceReward : 0f);
+            }
 
             // 同じGameObjectが次の着弾でさらに分割できるよう再入防止を解除する。
             isSeparating = false;
@@ -707,9 +710,12 @@ namespace GlassShooter.Gameplay
                 body.angularVelocity = inheritedAngularVelocity;
             }
 
-            ResourceUIManager.Instance?.ShowFragmentScore(
-                fragment,
-                fragmentStatus.ResourceReward);
+            if (!fragmentStatus.IsResourceRewardSuppressed)
+            {
+                ResourceUIManager.Instance?.ShowFragmentScore(
+                    fragment,
+                    fragmentStatus.ResourceReward);
+            }
 
             return fragment;
         }

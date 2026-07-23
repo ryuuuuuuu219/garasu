@@ -43,7 +43,6 @@ namespace GlassShooter.Gameplay
         [SerializeField, Min(0)] private int virtualPointCount = 32;
         [SerializeField, Range(0f, 1f)] private float enemyCrackEnergyMultiplier = 1f;
         [SerializeField, Min(0f)] private float maximumScanRadius = 20f;
-        private bool isEnemyCrackEnergySuppressed;
 
         [Header("Structure")]
         [SerializeField] private GlassOutlineShape outlineShape = GlassOutlineShape.Rectangle;
@@ -57,6 +56,7 @@ namespace GlassShooter.Gameplay
         [SerializeField, Min(0f)] public float resourceRewardArea;
 
         private bool resourceRewardGranted;
+        private bool isResourceRewardSuppressed;
         [SerializeField, Min(0f)] private float minimumBreakableArea = 0.04f;
 
         public float Thickness => thickness;
@@ -68,8 +68,7 @@ namespace GlassShooter.Gameplay
         public float MinimumInitialVulnerability => minimumInitialVulnerability;
         public float MaximumInitialVulnerability => maximumInitialVulnerability;
         public int VirtualPointCount => virtualPointCount;
-        public float EnemyCrackEnergyMultiplier =>
-            isEnemyCrackEnergySuppressed ? 0f : enemyCrackEnergyMultiplier;
+        public float EnemyCrackEnergyMultiplier => enemyCrackEnergyMultiplier;
         public float MaximumScanRadius => maximumScanRadius;
         public GlassOutlineShape OutlineShape => outlineShape;
         public Vector2[] FixedPositions => (Vector2[])fixedPositions.Clone();
@@ -81,14 +80,12 @@ namespace GlassShooter.Gameplay
             1f + Mathf.Log10(
                 1f / Mathf.Max(enemyCrackEnergyMultiplier, MinimumRewardEnergyMultiplier));
         public float ResourceReward => CalculateResourceReward(resourceRewardArea);
+        public bool IsResourceRewardSuppressed => isResourceRewardSuppressed;
 
-        /// <summary>
-        /// 妨害中は敵の亀裂エネルギー倍率を0にします。
-        /// falseを渡すと、妨害前の設定倍率へ戻ります。
-        /// </summary>
-        public void SetEnemyCrackEnergySuppressed(bool isSuppressed)
+        /// <summary>敵の攻撃など、破砕・落下による資源報酬を発生させない対象を設定します。</summary>
+        public void SetResourceRewardSuppressed(bool isSuppressed)
         {
-            isEnemyCrackEnergySuppressed = isSuppressed;
+            isResourceRewardSuppressed = isSuppressed;
         }
 
         public void SetResourceRewardArea(float area)
@@ -100,7 +97,9 @@ namespace GlassShooter.Gameplay
         /// <summary>敵の基礎亀裂エネルギー倍率から資源報酬を補正します。</summary>
         public float CalculateResourceReward(float baseReward)
         {
-            return Mathf.Max(0f, baseReward) * ResourceRewardMultiplier;
+            return isResourceRewardSuppressed
+                ? 0f
+                : Mathf.Max(0f, baseReward) * ResourceRewardMultiplier;
         }
 
         public float MinimumBreakableArea => minimumBreakableArea;
@@ -317,7 +316,7 @@ namespace GlassShooter.Gameplay
             maximumInitialVulnerability = source.maximumInitialVulnerability;
             virtualPointCount = source.virtualPointCount;
             enemyCrackEnergyMultiplier = source.enemyCrackEnergyMultiplier;
-            isEnemyCrackEnergySuppressed = source.isEnemyCrackEnergySuppressed;
+            isResourceRewardSuppressed = source.isResourceRewardSuppressed;
             maximumScanRadius = source.maximumScanRadius;
             outlineShape = source.outlineShape;
             fixedPositions = source.fixedPositions == null
@@ -355,7 +354,9 @@ namespace GlassShooter.Gameplay
         //消滅処理
         public void DestroyGlass()
         {
-            if (!resourceRewardGranted && resourceRewardArea > 0f)
+            if (!isResourceRewardSuppressed &&
+                !resourceRewardGranted &&
+                resourceRewardArea > 0f)
             {
                 resourceRewardGranted = true;
                 ResourceComponent.Instance.Add(ResourceReward);

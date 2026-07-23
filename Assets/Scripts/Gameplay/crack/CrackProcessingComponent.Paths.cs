@@ -94,19 +94,22 @@ namespace GlassShooter.Gameplay
                     return;
                 }
                 AddConnection(candidate.from, candidate.to, candidate.fractureCost);
-                float crackScore = CalculateWorldCrackLength(
-                    candidate.from.localPosition,
-                    candidate.to.localPosition);
-                if (glassStatus != null)
+                if (glassStatus == null || !glassStatus.IsResourceRewardSuppressed)
                 {
-                    crackScore = glassStatus.CalculateResourceReward(crackScore);
+                    float crackScore = CalculateWorldCrackLength(
+                        candidate.from.localPosition,
+                        candidate.to.localPosition);
+                    if (glassStatus != null)
+                    {
+                        crackScore = glassStatus.CalculateResourceReward(crackScore);
+                    }
+                    ResourceComponent.Instance.Add(crackScore);
+                    Vector2 localMidpoint =
+                        (candidate.from.localPosition + candidate.to.localPosition) * 0.5f;
+                    ResourceUIManager.Instance?.ShowCrackScore(
+                        transform.TransformPoint(localMidpoint),
+                        crackScore);
                 }
-                ResourceComponent.Instance.Add(crackScore);
-                Vector2 localMidpoint =
-                    (candidate.from.localPosition + candidate.to.localPosition) * 0.5f;
-                ResourceUIManager.Instance?.ShowCrackScore(
-                    transform.TransformPoint(localMidpoint),
-                    crackScore);
                 debugAcceptedConnections.Add(new DebugLine(
                     candidate.from.localPosition,
                     candidate.to.localPosition));

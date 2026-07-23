@@ -344,6 +344,7 @@ namespace Gameplay
         /// <summary>
         /// 指定形状の妨害用ガラスをワールド座標へ生成します。
         /// 初速を省略した場合は静止状態で生成されます。
+        /// 破砕・落下しても資源報酬は発生しません。
         /// </summary>
         public GameObject SpawnInterferenceObject(
             Vector2[] outlinePoints,
@@ -371,7 +372,7 @@ namespace Gameplay
                 Quaternion.Euler(0f, 0f, zRotationDegrees));
 
             GlassStatus status = obj.GetComponent<GlassStatus>();
-            status.SetEnemyCrackEnergySuppressed(true);
+            status.SetResourceRewardSuppressed(true);
             body.mass = status.CalculateMass(Mathf.Abs(CalculateSignedArea(outlinePoints)));
             body.linearVelocity = initialVelocity;
             return obj;

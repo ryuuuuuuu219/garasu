@@ -85,12 +85,25 @@ namespace GlassShooter.Gameplay
                 return;
             }
 
+            FragmentResourcePopupBinding binding =
+                fragment.GetComponent<FragmentResourcePopupBinding>();
+            if (binding != null && binding.Popup != null)
+            {
+                binding.Popup.SetScore(score);
+                return;
+            }
+
             FloatingResourceText popup = CreatePopup(fragmentScorePrefab, score);
             if (popup == null)
             {
                 return;
             }
 
+            if (binding == null)
+            {
+                binding = fragment.AddComponent<FragmentResourcePopupBinding>();
+            }
+            binding.Bind(popup);
             popup.InitializeFollowing(
                 ResolveCanvas(),
                 fragment,
@@ -138,6 +151,18 @@ namespace GlassShooter.Gameplay
         }
     }
 
+    /// <summary>同じ破片へ追従する面積UIが重複生成されるのを防ぎます。</summary>
+    [DisallowMultipleComponent]
+    internal sealed class FragmentResourcePopupBinding : MonoBehaviour
+    {
+        public FloatingResourceText Popup { get; private set; }
+
+        public void Bind(FloatingResourceText popup)
+        {
+            Popup = popup;
+        }
+    }
+
     internal sealed class FloatingResourceText : MonoBehaviour
     {
         private TMP_Text text;
@@ -176,6 +201,18 @@ namespace GlassShooter.Gameplay
             screenOffset = offset;
             followsObject = true;
             UpdatePosition();
+        }
+
+        public void SetScore(float score)
+        {
+            if (text == null)
+            {
+                text = GetComponent<TMP_Text>();
+            }
+            if (text != null)
+            {
+                text.text = $"+{score:0.###}";
+            }
         }
 
         private void Initialize(Canvas targetCanvas)

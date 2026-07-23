@@ -368,7 +368,10 @@ namespace GlassShooter.Gameplay
             }
 
             // 三角形化オーバーキルだけが即時報酬を持つ。落下回収分は各破片に残す。
-            if (grantInstantReward && fragments.Count > 0 && ResourceComponent.Instance != null)
+            if (grantInstantReward &&
+                fragments.Count > 0 &&
+                ResourceComponent.Instance != null &&
+                (glassStatus == null || !glassStatus.IsResourceRewardSuppressed))
             {
                 float reward = sourceWorldArea * sourceWorldArea *
                     (1f + Mathf.Pow(1.01f, fragments.Count));
