@@ -9,16 +9,16 @@ namespace GlassShooter.Gameplay
     public sealed class BulletStatus : MonoBehaviour
     {
         [Header("Ballistics")]
-        [SerializeField, Min(0f)] private float mass = 1f;
-        [SerializeField] private Vector2 currentVelocity = new Vector2(0f, 12f);
-        [SerializeField, Min(0f)] private float fireRate = 6.25f;
+        [SerializeField, Min(0f)] private float mass = 0.03f;
+        [SerializeField] private Vector2 currentVelocity = new Vector2(0f, 3f);
+        [SerializeField, Min(0f)] private float fireRate = 1f;
 
         [Header("Fracture")]
-        [SerializeField, Range(0f, 1f)] private float crackConversionEfficiency = 0.5f;
+        [SerializeField, Range(0f, 1f)] private float crackConversionEfficiency = 0.05f;
 
         [Header("Erosion")]
         [SerializeField, Range(0f, 1f)]
-        private float contactSizeMultiplier = 0.904382f;
+        private float contactSizeMultiplier = 1f;
 
         public float Mass => mass;
         public Vector2 CurrentVelocity => currentVelocity;
@@ -27,7 +27,7 @@ namespace GlassShooter.Gameplay
 
         /// <summary>
         /// 着弾ごとに対象へ適用する線形サイズ倍率です。
-        /// 初期値は旧□弾の (1 - 10^-2)^10、約0.9044倍です。
+        /// 初期値は成長ステータスのレベル0と同じ1倍です。
         /// </summary>
         public float ContactSizeMultiplier => contactSizeMultiplier;
 

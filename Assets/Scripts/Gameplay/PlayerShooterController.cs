@@ -32,6 +32,7 @@ namespace GlassShooter.Gameplay
 
         private KeyboardInputState inputState;
         private Rigidbody2D playerRigidbody;
+        private Vector2 combinedMovementOverrideVelocity;
         private float nextFireTime;
         private LineRenderer lr;
         private PolygonCollider2D hitbox;
@@ -209,6 +210,8 @@ namespace GlassShooter.Gameplay
 
         private void Move()
         {
+            combinedMovementOverrideVelocity = Vector2.zero;
+
             Vector2 inputDirection = inputState.ArrowDirection;
             if (inputDirection.sqrMagnitude > 1f)
             {
@@ -221,11 +224,13 @@ namespace GlassShooter.Gameplay
         }
 
         /// <summary>
-        /// 不可侵領域など、入力より優先する効果で現在速度を上書きします。
+        /// 不可侵領域など、入力より優先する効果の速度を合成して反映します。
+        /// 合成値は物理フレームごとの通常移動処理で初期化されます。
         /// </summary>
-        public void OverrideMovementVelocity(Vector2 velocity)
+        public void AddMovementOverrideVelocity(Vector2 velocity)
         {
-            playerRigidbody.linearVelocity = velocity;
+            combinedMovementOverrideVelocity += velocity;
+            playerRigidbody.linearVelocity = combinedMovementOverrideVelocity;
         }
 
         private void ClampMovementToBounds(ref Vector2 velocity)

@@ -188,7 +188,7 @@ namespace GlassShooter.Gameplay
 
             if (playerController != null)
             {
-                playerController.OverrideMovementVelocity(repulsionVelocity);
+                playerController.AddMovementOverrideVelocity(repulsionVelocity);
             }
             else
             {
