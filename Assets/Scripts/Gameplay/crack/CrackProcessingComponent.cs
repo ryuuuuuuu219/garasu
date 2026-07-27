@@ -13,6 +13,7 @@ namespace GlassShooter.Gameplay
     [RequireComponent(typeof(GlassStatus))]
     [RequireComponent(typeof(CrackGrowthComponent))]
     [RequireComponent(typeof(CrackFragmentationComponent))]
+    [RequireComponent(typeof(CrackDiagnosticsLogger))]
     public sealed partial class CrackProcessingComponent : MonoBehaviour
     {
         [Header("Glass References")]
@@ -25,6 +26,7 @@ namespace GlassShooter.Gameplay
         [Header("Feature Components")]
         [SerializeField] private CrackGrowthComponent growthComponent = null;
         [SerializeField] private CrackFragmentationComponent fragmentationComponent = null;
+        [SerializeField] private CrackDiagnosticsLogger crackDiagnosticsLogger = null;
 
         [Header("Geometry (Local Space)")]
         [SerializeField] private Vector2[] outline = Array.Empty<Vector2>();
@@ -46,10 +48,6 @@ namespace GlassShooter.Gameplay
         [Header("Terminal Fragment Release")]
         [SerializeField, Min(0f)] private float terminalFragmentMaximumArea = 0.5f;
         [SerializeField, Min(0f)] private float anchorFailureEnergy;
-
-        [Header("Boundary Completion")]
-        [SerializeField, Min(0f)] private float boundaryCompletionDistance = 0.15f;
-        [SerializeField, Min(1)] private int maxBoundaryCompletionCandidates = 3;
 
         private readonly List<CrackNode> crackNodes = new List<CrackNode>();
         private readonly List<CrackConnection> crackConnections = new List<CrackConnection>();
@@ -138,12 +136,6 @@ namespace GlassShooter.Gameplay
             public float totalFractureCost;
         }
 
-        private sealed class BoundaryCompletionCandidate
-        {
-            public Vector2[] completedPath;
-            public float distanceSquared;
-        }
-
         private readonly struct AngleMarker
         {
             public AngleMarker(float angle, CrackCandidate candidate)
@@ -184,6 +176,7 @@ namespace GlassShooter.Gameplay
         {
             ResolveFeatureComponents();
             ResolveMissingReferences();
+            ResolveDiagnosticsLogger();
             EnsureGeometryInitialized();
             ApplyAnchorState();
             RenderCracks();
@@ -194,6 +187,7 @@ namespace GlassShooter.Gameplay
             ResolveFeatureComponents();
             glassRoot = gameObject;
             ResolveMissingReferences();
+            ResolveDiagnosticsLogger();
             EnsureGeometryInitialized();
         }
 
@@ -210,6 +204,7 @@ namespace GlassShooter.Gameplay
             }
 
             ResolveMissingReferences();
+            ResolveDiagnosticsLogger();
             outline = CleanPolygon(outlinePoints);
             cracks = CloneCracks(crackPaths);
             boundaryFallbackPoints.Clear();

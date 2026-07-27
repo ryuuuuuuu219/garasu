@@ -15,6 +15,9 @@ namespace GlassShooter.Gameplay
         [SerializeField] private Vector2 baseGravity = new Vector2(0f, -9.81f);
         [SerializeField, Min(0f)] private float gravityMultiplier = 0.1f;
 
+        [Header("Diagnostics")]
+        [SerializeField] private bool crackDiagnosticsEnabled = false;
+
         private Vector3 scaleRootBaseScale = Vector3.one;
         private Transform cachedScaleRoot;
 
@@ -22,6 +25,7 @@ namespace GlassShooter.Gameplay
         public float GlobalScaleMultiplier => globalScaleMultiplier;
         public float GravityMultiplier => gravityMultiplier;
         public Vector2 EffectiveGravity => baseGravity * gravityMultiplier;
+        public bool CrackDiagnosticsEnabled => crackDiagnosticsEnabled;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void EnsureInstanceExists()
@@ -79,6 +83,11 @@ namespace GlassShooter.Gameplay
         {
             gravityMultiplier = Mathf.Max(0f, value);
             ApplyEnvironment();
+        }
+
+        public void SetCrackDiagnosticsEnabled(bool value)
+        {
+            crackDiagnosticsEnabled = value;
         }
 
         public void SetScaleRoot(Transform root)

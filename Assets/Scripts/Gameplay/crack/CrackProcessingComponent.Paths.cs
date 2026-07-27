@@ -317,8 +317,7 @@ namespace GlassShooter.Gameplay
                 }
             }
 
-            // 通常判定では外周へ届かなかった短い隙間だけを補完する。
-            return TryCompleteNearBoundaryPath();
+            return false;
 
             void AddIfOnBoundary(int nodeId)
             {
@@ -328,137 +327,6 @@ namespace GlassShooter.Gameplay
                     boundaryNodeIds.Add(nodeId);
                 }
             }
-        }
-
-        private bool TryCompleteNearBoundaryPath()
-        {
-            if (boundaryCompletionDistance <= GeometryEpsilon ||
-                maxBoundaryCompletionCandidates <= 0 ||
-                outline == null ||
-                outline.Length < 3)
-            {
-                return false;
-            }
-
-            var degreeByNodeId = new int[crackNodes.Count];
-            for (int i = 0; i < crackConnections.Count; i++)
-            {
-                CrackConnection connection = crackConnections[i];
-                if (connection.nodeAId >= 0 && connection.nodeAId < degreeByNodeId.Length)
-                {
-                    degreeByNodeId[connection.nodeAId]++;
-                }
-                if (connection.nodeBId >= 0 && connection.nodeBId < degreeByNodeId.Length)
-                {
-                    degreeByNodeId[connection.nodeBId]++;
-                }
-            }
-
-            float maximumDistanceSquared = boundaryCompletionDistance * boundaryCompletionDistance;
-            var candidates = new List<BoundaryCompletionCandidate>();
-            for (int nodeId = 0; nodeId < crackNodes.Count; nodeId++)
-            {
-                CrackNode tip = crackNodes[nodeId];
-                if (degreeByNodeId[nodeId] != 1 || IsPointOnOutline(tip.localPosition) ||
-                    !TryFindShortestBoundaryPathToNode(nodeId, out Vector2[] pathToTip))
-                {
-                    continue;
-                }
-
-                for (int edgeIndex = 0; edgeIndex < outline.Length; edgeIndex++)
-                {
-                    Vector2 boundaryPoint = ClosestPointOnSegment(
-                        tip.localPosition,
-                        outline[edgeIndex],
-                        outline[(edgeIndex + 1) % outline.Length]);
-                    float distanceSquared = (boundaryPoint - tip.localPosition).sqrMagnitude;
-                    if (distanceSquared <= GeometryEpsilon * GeometryEpsilon ||
-                        distanceSquared > maximumDistanceSquared ||
-                        Approximately(boundaryPoint, pathToTip[0]) ||
-                        IntersectsOuterBoundaryBeforeTarget(tip.localPosition, boundaryPoint))
-                    {
-                        continue;
-                    }
-
-                    var boundaryNode = new CrackNode
-                    {
-                        id = -1,
-                        localPosition = boundaryPoint,
-                        vulnerability = 1f,
-                        isSurfaceFlaw = true
-                    };
-                    if (IntersectsExistingCrackImproperly(tip, boundaryNode) ||
-                        ContainsEquivalentCompletion(candidates, tip.localPosition, boundaryPoint))
-                    {
-                        continue;
-                    }
-
-                    var completedPath = new Vector2[pathToTip.Length + 1];
-                    Array.Copy(pathToTip, completedPath, pathToTip.Length);
-                    completedPath[^1] = boundaryPoint;
-                    candidates.Add(new BoundaryCompletionCandidate
-                    {
-                        completedPath = completedPath,
-                        distanceSquared = distanceSquared
-                    });
-                }
-            }
-
-            candidates.Sort((a, b) => a.distanceSquared.CompareTo(b.distanceSquared));
-            int attemptCount = Mathf.Min(maxBoundaryCompletionCandidates, candidates.Count);
-            for (int i = 0; i < attemptCount; i++)
-            {
-                if (TrySeparateAlongCrack(candidates[i].completedPath))
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        private bool TryFindShortestBoundaryPathToNode(int targetNodeId, out Vector2[] shortestPath)
-        {
-            shortestPath = Array.Empty<Vector2>();
-            float shortestLength = float.PositiveInfinity;
-            for (int nodeId = 0; nodeId < crackNodes.Count; nodeId++)
-            {
-                CrackNode node = crackNodes[nodeId];
-                if (nodeId == targetNodeId || !IsPointOnOutline(node.localPosition) ||
-                    !TryFindNodePath(nodeId, targetNodeId, out Vector2[] candidatePath))
-                {
-                    continue;
-                }
-
-                float length = 0f;
-                for (int pointIndex = 0; pointIndex + 1 < candidatePath.Length; pointIndex++)
-                {
-                    length += Vector2.Distance(candidatePath[pointIndex], candidatePath[pointIndex + 1]);
-                }
-                if (length < shortestLength)
-                {
-                    shortestLength = length;
-                    shortestPath = candidatePath;
-                }
-            }
-            return shortestPath.Length >= 2;
-        }
-
-        private static bool ContainsEquivalentCompletion(
-            IReadOnlyList<BoundaryCompletionCandidate> candidates,
-            Vector2 tip,
-            Vector2 boundaryPoint)
-        {
-            for (int i = 0; i < candidates.Count; i++)
-            {
-                Vector2[] path = candidates[i].completedPath;
-                if (path != null && path.Length >= 2 &&
-                    Approximately(path[^2], tip) &&
-                    Approximately(path[^1], boundaryPoint))
-                {
-                    return true;
-                }
-            }
-            return false;
         }
 
         private bool TryFindNodePath(int startNodeId, int targetNodeId, out Vector2[] path)
@@ -597,8 +465,6 @@ namespace GlassShooter.Gameplay
             surfaceParallelRejectionDistance = Mathf.Max(0f, surfaceParallelRejectionDistance);
             terminalFragmentMaximumArea = Mathf.Max(0f, terminalFragmentMaximumArea);
             anchorFailureEnergy = Mathf.Max(0f, anchorFailureEnergy);
-            boundaryCompletionDistance = Mathf.Max(0f, boundaryCompletionDistance);
-            maxBoundaryCompletionCandidates = Mathf.Max(1, maxBoundaryCompletionCandidates);
         }
 
     }

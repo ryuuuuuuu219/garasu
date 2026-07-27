@@ -149,6 +149,13 @@ namespace GlassShooter.Gameplay
             float newImpactEnergy = bulletStatus.CalculateKineticEnergy()
                 * bulletStatus.CrackConversionEfficiency
                 * enemyEnergyMultiplier;
+            float pooledBeforeImpact = pooledImpactEnergy;
+            crackDiagnosticsLogger?.BeginImpact(
+                impactLocalPosition,
+                bulletStatus.CurrentVelocity,
+                newImpactEnergy,
+                pooledBeforeImpact,
+                CalculateScanRadius(newImpactEnergy + pooledBeforeImpact));
 
             // オーバーキルは、このCrackProcessingComponentが受けた最初の有効攻撃だけで判定する。
             // 判定失敗も消費扱いとし、蓄積エネルギーは一切含めない。
@@ -158,14 +165,37 @@ namespace GlassShooter.Gameplay
                 Vector2 overkillImpact = GetClosestPointOnOutline(impactLocalPosition);
                 if (TryHandleFirstImpactOverkill(overkillImpact, newImpactEnergy))
                 {
+                    crackDiagnosticsLogger?.RecordEvent(
+                        "IMPACT_COMPLETED_BY_OVERKILL",
+                        false,
+                        $"impact={impactLocalPosition} energy={newImpactEnergy}",
+                        true);
                     return;
                 }
             }
 
+            int nodeCountBeforeSurfaceSelection = crackNodes.Count;
             CrackNode surfaceFlaw = FindOrCreateSurfaceFlaw(impactLocalPosition);
+            bool surfaceRootCreated = crackNodes.Count > nodeCountBeforeSurfaceSelection;
+            DiagnoseNodeVulnerabilityState("SurfaceRootSelected");
             CrackNode startNode = FindCrackTipFromSurfaceRootOrFallback(
                 surfaceFlaw,
                 impactLocalPosition);
+            bool startWasWeakPoint = IsWeakPointNode(startNode);
+            crackDiagnosticsLogger?.RecordImpactGraphRelation(
+                impactLocalPosition,
+                surfaceFlaw.localPosition,
+                startNode.localPosition,
+                surfaceRootCreated,
+                surfaceFlaw.id == startNode.id,
+                startWasWeakPoint,
+                GetNodeDegree(startNode));
+            if (startWasWeakPoint)
+            {
+                crackDiagnosticsLogger?.RecordWeakPointStartNode(
+                    startNode.localPosition,
+                    GetNodeDegree(startNode));
+            }
             Vector2 referenceDirection = ResolveReferenceDirection(startNode, bulletStatus.CurrentVelocity);
 
             float impactEnergy = newImpactEnergy + pooledImpactEnergy;
@@ -199,13 +229,25 @@ namespace GlassShooter.Gameplay
             if (!preventsImpactShrink &&
                 !ApplySizeMultiplier(bulletStatus.ContactSizeMultiplier))
             {
+                crackDiagnosticsLogger?.EndImpact(
+                    crackProgressed,
+                    paths.Count,
+                    pooledImpactEnergy,
+                    false,
+                    startWasWeakPoint);
                 return;
             }
 
             RenderCracks();
 
             // 外周同士を結ぶ連続クラックが完成した場合だけ既存の破片分離へ渡す。
-            TrySeparateCompletedPath();
+            bool separated = TrySeparateCompletedPath();
+            crackDiagnosticsLogger?.EndImpact(
+                crackProgressed,
+                paths.Count,
+                pooledImpactEnergy,
+                separated,
+                startWasWeakPoint);
 
         }
 

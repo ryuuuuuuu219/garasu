@@ -5,7 +5,7 @@ namespace GlassShooter.Gameplay
     public sealed partial class CrackProcessingComponent
     {
         private const int WeakPointTriggerDegree = 2;
-        private const float WeakPointVulnerability = 0f;
+        private const float WeakPointVulnerability = 0.1f;
 
         private void EnsureEnemyWeakPointInitialized()
         {
@@ -72,25 +72,21 @@ namespace GlassShooter.Gameplay
             CrackNode weakPointNode = FindNodeAt(enemyDefeat.WeakPointLocalPosition);
             if (weakPointNode == null)
             {
+                crackDiagnosticsLogger?.RecordWeakPointEvaluation(0, false);
                 return false;
             }
 
-            int degree = 0;
-            for (int i = 0; i < crackConnections.Count; i++)
-            {
-                CrackConnection connection = crackConnections[i];
-                if (connection.nodeAId == weakPointNode.id || connection.nodeBId == weakPointNode.id)
-                {
-                    degree++;
-                }
-            }
+            int degree = GetNodeDegree(weakPointNode);
 
             if (degree < WeakPointTriggerDegree)
             {
+                crackDiagnosticsLogger?.RecordWeakPointEvaluation(degree, false);
                 return false;
             }
 
-            return MarkEnemyDefeated();
+            bool defeated = MarkEnemyDefeated();
+            crackDiagnosticsLogger?.RecordWeakPointEvaluation(degree, defeated);
+            return defeated;
         }
 
         private bool MarkEnemyDefeated()

@@ -187,13 +187,33 @@ namespace GlassShooter.Gameplay
                 availableEnergy <= GeometryEpsilon ||
                 direction.sqrMagnitude <= GeometryEpsilon * GeometryEpsilon ||
                 outline == null ||
-                outline.Length < 3 ||
-                !TryGetFirstBoundaryIntersection(
-                    origin.localPosition,
-                    direction.normalized,
-                    maximumDistance,
-                    out Vector2 boundaryPoint))
+                outline.Length < 3)
             {
+                crackDiagnosticsLogger?.RecordBoundaryFallback(
+                    false,
+                    "InvalidInput",
+                    origin != null ? origin.localPosition : default,
+                    direction,
+                    maximumDistance,
+                    availableEnergy,
+                    default);
+                return false;
+            }
+
+            if (!TryGetFirstBoundaryIntersection(
+                origin.localPosition,
+                direction.normalized,
+                maximumDistance,
+                out Vector2 boundaryPoint))
+            {
+                crackDiagnosticsLogger?.RecordBoundaryFallback(
+                    false,
+                    "NoForwardBoundaryIntersection",
+                    origin.localPosition,
+                    direction,
+                    maximumDistance,
+                    availableEnergy,
+                    default);
                 return false;
             }
 
@@ -202,7 +222,7 @@ namespace GlassShooter.Gameplay
             {
                 id = -1,
                 localPosition = boundaryPoint,
-                vulnerability = 1f,
+                vulnerability = ResolveBoundaryFallbackVulnerability(boundaryPoint),
                 isSurfaceFlaw = false
             };
 
@@ -212,14 +232,42 @@ namespace GlassShooter.Gameplay
                 direction,
                 maximumDistance,
                 false,
-                out candidate) ||
-                candidate.fractureCost > availableEnergy + GeometryEpsilon)
+                out candidate))
             {
+                crackDiagnosticsLogger?.RecordBoundaryFallback(
+                    false,
+                    "CandidateRejected",
+                    origin.localPosition,
+                    direction,
+                    maximumDistance,
+                    availableEnergy,
+                    boundaryPoint);
+                candidate = null;
+                return false;
+            }
+            if (candidate.fractureCost > availableEnergy + GeometryEpsilon)
+            {
+                crackDiagnosticsLogger?.RecordBoundaryFallback(
+                    false,
+                    "InsufficientEnergy",
+                    origin.localPosition,
+                    direction,
+                    maximumDistance,
+                    availableEnergy,
+                    boundaryPoint);
                 candidate = null;
                 return false;
             }
 
             debugPrimaryCandidates.Add(new DebugLine(origin.localPosition, boundaryPoint));
+            crackDiagnosticsLogger?.RecordBoundaryFallback(
+                true,
+                "Accepted",
+                origin.localPosition,
+                direction,
+                maximumDistance,
+                availableEnergy,
+                boundaryPoint);
             return true;
         }
 
@@ -276,12 +324,24 @@ namespace GlassShooter.Gameplay
 
             Vector2 delta = to.localPosition - from.localPosition;
             float distance = delta.magnitude;
+            bool surfaceParallel = distance > GeometryEpsilon &&
+                distance <= maximumDistance &&
+                IsPointInsideOrOnOutline(to.localPosition) &&
+                IsSurfaceParallelCandidate(from, to.localPosition);
             if (distance <= GeometryEpsilon || distance > maximumDistance ||
                 !IsPointInsideOrOnOutline(to.localPosition) ||
-                IsSurfaceParallelCandidate(from, to.localPosition) ||
+                surfaceParallel ||
                 IntersectsOuterBoundaryBeforeTarget(from.localPosition, to.localPosition) ||
                 IntersectsExistingCrackImproperly(from, to))
             {
+                if (surfaceParallel)
+                {
+                    crackDiagnosticsLogger?.RecordSurfaceParallelRejection(
+                        from.localPosition,
+                        to.localPosition,
+                        IsEnemyWeakPoint(to.localPosition),
+                        surfaceParallelRejectionDistance);
+                }
                 if (recordRejected && distance > GeometryEpsilon)
                 {
                     debugRejectedCandidates.Add(new DebugLine(from.localPosition, to.localPosition));
@@ -488,12 +548,15 @@ namespace GlassShooter.Gameplay
                 return;
             }
 
+            DiagnoseConnectionBypassesWeakPoint(from, to, "AddConnection");
             crackConnections.Add(new CrackConnection
             {
                 nodeAId = Mathf.Min(from.id, to.id),
                 nodeBId = Mathf.Max(from.id, to.id),
                 fractureCost = Mathf.Max(0f, fractureCost)
             });
+            DiagnoseNodeVulnerabilityState("ConnectionAdded");
+            DiagnoseWeakPointState("ConnectionAdded");
         }
 
         private bool IntersectsOuterBoundaryBeforeTarget(Vector2 start, Vector2 target)

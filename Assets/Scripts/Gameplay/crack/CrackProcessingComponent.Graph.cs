@@ -7,6 +7,9 @@ namespace GlassShooter.Gameplay
 {
     public sealed partial class CrackProcessingComponent
     {
+        private const float MinimumInternalNodeVulnerability = 0.5f;
+        private const float MaximumInternalNodeVulnerability = 1f;
+
         private void EnsureCrackGraphInitialized()
         {
             if (crackGraphInitialized)
@@ -102,6 +105,8 @@ namespace GlassShooter.Gameplay
 
             crackGraphInitialized = true;
             EnsureEnemyWeakPointInitialized();
+            DiagnoseNodeVulnerabilityState("GraphInitialized");
+            DiagnoseWeakPointState("GraphInitialized");
             EvaluateWeakPointDefeat();
         }
 
@@ -137,40 +142,73 @@ namespace GlassShooter.Gameplay
             bool isSurfaceFlaw,
             bool preserveBoundaryFallbackVulnerability = false)
         {
+            bool isWeakPoint = IsEnemyWeakPoint(position);
+            bool isOutlineVertex = FindOutlineVertex(position) >= 0;
+            bool isOnOutline = IsPointOnOutline(position);
             CrackNode existing = FindNodeAt(position);
             if (existing != null)
             {
                 existing.isSurfaceFlaw |= isSurfaceFlaw;
-                if (isSurfaceFlaw)
+                if (isWeakPoint)
+                {
+                    existing.vulnerability = WeakPointVulnerability;
+                }
+                else if (isSurfaceFlaw)
                 {
                     existing.vulnerability = 0f;
                     RemoveBoundaryFallbackPoint(position);
                 }
+                else if (isOutlineVertex)
+                {
+                    existing.vulnerability = 0f;
+                }
                 else if (preserveBoundaryFallbackVulnerability && !existing.isSurfaceFlaw)
                 {
-                    existing.vulnerability = Mathf.Clamp01(vulnerability);
+                    existing.vulnerability = 1f;
                     AddBoundaryFallbackPoint(position);
+                }
+                else if (isOnOutline)
+                {
+                    existing.vulnerability = 0f;
                 }
                 return existing;
             }
 
-            bool isOutlineVertex = FindOutlineVertex(position) >= 0;
             var node = new CrackNode
             {
                 id = crackNodes.Count,
                 localPosition = position,
-                vulnerability = isSurfaceFlaw ||
-                    (isOutlineVertex && !preserveBoundaryFallbackVulnerability)
-                        ? 0f
-                        : Mathf.Clamp01(vulnerability),
+                vulnerability = ResolveNodeVulnerability(),
                 isSurfaceFlaw = isSurfaceFlaw
             };
             crackNodes.Add(node);
-            if (preserveBoundaryFallbackVulnerability)
+            if (preserveBoundaryFallbackVulnerability &&
+                !isWeakPoint &&
+                !isOutlineVertex)
             {
                 AddBoundaryFallbackPoint(position);
             }
             return node;
+
+            float ResolveNodeVulnerability()
+            {
+                if (isWeakPoint)
+                {
+                    return WeakPointVulnerability;
+                }
+                if (isSurfaceFlaw || isOutlineVertex)
+                {
+                    return 0f;
+                }
+                if (isOnOutline)
+                {
+                    return preserveBoundaryFallbackVulnerability ? 1f : 0f;
+                }
+                return Mathf.Lerp(
+                    MinimumInternalNodeVulnerability,
+                    MaximumInternalNodeVulnerability,
+                    Mathf.Clamp01(vulnerability));
+            }
         }
 
         private bool IsBoundaryFallbackPoint(Vector2 position)
@@ -183,6 +221,15 @@ namespace GlassShooter.Gameplay
                 }
             }
             return false;
+        }
+
+        private float ResolveBoundaryFallbackVulnerability(Vector2 position)
+        {
+            if (IsEnemyWeakPoint(position))
+            {
+                return WeakPointVulnerability;
+            }
+            return FindOutlineVertex(position) >= 0 ? 0f : 1f;
         }
 
         private void AddBoundaryFallbackPoint(Vector2 position)

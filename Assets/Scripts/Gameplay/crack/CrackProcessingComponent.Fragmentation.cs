@@ -27,6 +27,19 @@ namespace GlassShooter.Gameplay
                 return false;
             }
 
+            if (enemyDefeat != null && enemyDefeat.HasWeakPoint)
+            {
+                Vector2 weakPoint = enemyDefeat.WeakPointLocalPosition;
+                bool weakPointOnPath = IsWeakPointOnPath(crack, out bool explicitlyInPath);
+                crackDiagnosticsLogger?.RecordSplitWeakPoint(
+                    weakPoint,
+                    weakPointOnPath,
+                    explicitlyInPath,
+                    IsPointInsideOrOnPolygon(weakPoint, firstRegion),
+                    IsPointInsideOrOnPolygon(weakPoint, secondRegion),
+                    GetNodeDegree(FindNodeAt(weakPoint)));
+            }
+
             // Destroyまでの同一フレーム中に再び分離されないよう、生成前に再入を止める。
             isSeparating = true;
             if (TryGetComponent(out Collider2D sourceCollider))
@@ -510,6 +523,7 @@ namespace GlassShooter.Gameplay
 
         private void RetainFragment(Vector2[] region, bool releasedFromAnchor)
         {
+            float pooledEnergyBeforeReset = pooledImpactEnergy;
             float fragmentArea = Mathf.Abs(SignedArea(region));
             Vector2[][] retainedCracks = ClipCracksToPolygon(cracks, region);
             var retainedInitialPoints = new List<Vector2>();
@@ -561,6 +575,15 @@ namespace GlassShooter.Gameplay
             anchorFailureEnergy = 0f;
             isReleasedFromAnchor = releasedFromAnchor;
             overkillEvaluationConsumed = true;
+            if (pooledEnergyBeforeReset > GeometryEpsilon)
+            {
+                crackDiagnosticsLogger?.RecordEvent(
+                    "ENERGY_POOL_RESET_ON_FRAGMENT_RETAIN",
+                    false,
+                    $"pooledBefore={pooledEnergyBeforeReset} pooledAfter=0",
+                    true);
+            }
+            DiagnoseWeakPointState("FragmentRetained");
 
             if (outlineLineRenderer != null)
             {
@@ -752,8 +775,6 @@ namespace GlassShooter.Gameplay
             target.angleCostWeight = angleCostWeight;
             target.surfaceParallelRejectionDistance = surfaceParallelRejectionDistance;
             target.terminalFragmentMaximumArea = terminalFragmentMaximumArea;
-            target.boundaryCompletionDistance = boundaryCompletionDistance;
-            target.maxBoundaryCompletionCandidates = maxBoundaryCompletionCandidates;
         }
 
         private static Vector2 CalculateCentroid(IReadOnlyList<Vector2> polygon)

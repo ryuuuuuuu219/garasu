@@ -211,7 +211,7 @@ namespace GlassShooter.Gameplay
 #if UNITY_EDITOR
         void Debug_impactFromMouse()
         {
-            if (Input.GetMouseButtonDown(0))
+            if (Input.GetMouseButton(0))
             {
                 Vector3 mousePosition = Input.mousePosition;
                 mousePosition.z = 0f; // Set the z-coordinate to 0 for 2D
