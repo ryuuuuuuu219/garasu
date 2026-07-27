@@ -9,8 +9,8 @@ namespace GlassShooter.Gameplay
     public sealed class BulletStatus : MonoBehaviour
     {
         [Header("Ballistics")]
-        [SerializeField, Min(0f)] private float mass = 0.03f;
-        [SerializeField] private Vector2 currentVelocity = new Vector2(0f, 3f);
+        [SerializeField, Min(0f)] private float mass = 0.1f;
+        [SerializeField] private Vector2 currentVelocity = new Vector2(0f, 4.5f);
         [SerializeField, Min(0f)] private float fireRate = 1f;
 
         [Header("Fracture")]

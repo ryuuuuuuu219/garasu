@@ -546,6 +546,13 @@ namespace GlassShooter.Gameplay
             outline = CleanPolygon(region);
             cracks = retainedCracks;
             initCrackPoint = retainedInitialPoints.ToArray();
+            for (int i = boundaryFallbackPoints.Count - 1; i >= 0; i--)
+            {
+                if (!IsPointInsideOrOnPolygon(boundaryFallbackPoints[i], region))
+                {
+                    boundaryFallbackPoints.RemoveAt(i);
+                }
+            }
             crackNodes.Clear();
             crackConnections.Clear();
             crackGraphInitialized = false;
@@ -646,6 +653,14 @@ namespace GlassShooter.Gameplay
                     fragmentCracks[crackIndex][pointIndex] -= centroid;
                 }
             }
+            var fragmentBoundaryFallbackPoints = new List<Vector2>();
+            for (int i = 0; i < boundaryFallbackPoints.Count; i++)
+            {
+                if (IsPointInsideOrOnPolygon(boundaryFallbackPoints[i], region))
+                {
+                    fragmentBoundaryFallbackPoints.Add(boundaryFallbackPoints[i] - centroid);
+                }
+            }
 
             if (fragmentCracks.Length > 0 || canBreakAgain)
             {
@@ -700,7 +715,11 @@ namespace GlassShooter.Gameplay
             {
                 CrackProcessingComponent fragmentProcessing = fragment.AddComponent<CrackProcessingComponent>();
                 CopyGrowthSettingsTo(fragmentProcessing, pieceIndex);
-                fragmentProcessing.Initialize(centeredRegion, fragmentCracks, releasedFromAnchor);
+                fragmentProcessing.Initialize(
+                    centeredRegion,
+                    fragmentCracks,
+                    releasedFromAnchor,
+                    fragmentBoundaryFallbackPoints.ToArray());
             }
 
             // CrackProcessingComponent.Awake の初期固定後に、解放済み破片のみ運動を引き継ぐ。
@@ -731,6 +750,7 @@ namespace GlassShooter.Gameplay
             target.maximumScanRadius = maximumScanRadius;
             target.minimumVulnerabilityCostMultiplier = minimumVulnerabilityCostMultiplier;
             target.angleCostWeight = angleCostWeight;
+            target.surfaceParallelRejectionDistance = surfaceParallelRejectionDistance;
             target.terminalFragmentMaximumArea = terminalFragmentMaximumArea;
             target.boundaryCompletionDistance = boundaryCompletionDistance;
             target.maxBoundaryCompletionCandidates = maxBoundaryCompletionCandidates;

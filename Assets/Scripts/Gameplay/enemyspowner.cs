@@ -47,7 +47,44 @@ namespace Gameplay
             if(!manualTrigger) return;
             manualTrigger = false;
             difficulty = manualSpawnDiffculty;
+            DestroyExistingEnemies();
             SpawnEnemyForCurrentDifficulty();
+        }
+
+        private void DestroyExistingEnemies()
+        {
+            // デバッグ操作による削除を撃破として扱わないよう、先に購読を解除する。
+            ClearTrackedEnemies();
+
+            EnemyDefeatComponent[] existingEnemies =
+                GetComponentsInChildren<EnemyDefeatComponent>(true);
+            for (int i = 0; i < existingEnemies.Length; i++)
+            {
+                EnemyDefeatComponent enemy = existingEnemies[i];
+                if (enemy == null)
+                {
+                    continue;
+                }
+
+                // ボス装甲など、別の敵の子になっているものは親の削除に含める。
+                bool isNestedEnemy = false;
+                Transform ancestor = enemy.transform.parent;
+                while (ancestor != null && ancestor != transform)
+                {
+                    if (ancestor.TryGetComponent(out EnemyDefeatComponent _))
+                    {
+                        isNestedEnemy = true;
+                        break;
+                    }
+
+                    ancestor = ancestor.parent;
+                }
+
+                if (!isNestedEnemy)
+                {
+                    Destroy(enemy.gameObject);
+                }
+            }
         }
 
         // EnemyTypeに対応する外周頂点を、敵の中心を原点としたローカル座標で返します。
@@ -307,6 +344,7 @@ namespace Gameplay
                     break;
                 case "battery_A":
                     battery_A battery = enemy.AddComponent<battery_A>();
+                    enemy.AddComponent<BossGlassComponent>();
                     battery.Initialize(this);
                     manager.apperdelay(enemy);
                     break;

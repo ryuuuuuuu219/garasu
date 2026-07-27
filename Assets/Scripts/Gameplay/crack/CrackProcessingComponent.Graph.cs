@@ -76,8 +76,14 @@ namespace GlassShooter.Gameplay
 
                 for (int pointIndex = 0; pointIndex < path.Length; pointIndex++)
                 {
-                    bool isSurface = IsPointOnOutline(path[pointIndex]);
-                    GetOrCreateNode(path[pointIndex], isSurface ? 1f : NextRandom01(), isSurface);
+                    Vector2 position = path[pointIndex];
+                    bool isOnSurface = IsPointOnOutline(position);
+                    bool isBoundaryFallback = isOnSurface && IsBoundaryFallbackPoint(position);
+                    GetOrCreateNode(
+                        position,
+                        isBoundaryFallback ? 1f : NextRandom01(),
+                        isOnSurface && !isBoundaryFallback,
+                        isBoundaryFallback);
                 }
 
                 for (int pointIndex = 0; pointIndex + 1 < path.Length; pointIndex++)
@@ -125,7 +131,11 @@ namespace GlassShooter.Gameplay
             return (float)crackRandom.NextDouble();
         }
 
-        private CrackNode GetOrCreateNode(Vector2 position, float vulnerability, bool isSurfaceFlaw)
+        private CrackNode GetOrCreateNode(
+            Vector2 position,
+            float vulnerability,
+            bool isSurfaceFlaw,
+            bool preserveBoundaryFallbackVulnerability = false)
         {
             CrackNode existing = FindNodeAt(position);
             if (existing != null)
@@ -133,20 +143,65 @@ namespace GlassShooter.Gameplay
                 existing.isSurfaceFlaw |= isSurfaceFlaw;
                 if (isSurfaceFlaw)
                 {
-                    existing.vulnerability = 1f;
+                    existing.vulnerability = 0f;
+                    RemoveBoundaryFallbackPoint(position);
+                }
+                else if (preserveBoundaryFallbackVulnerability && !existing.isSurfaceFlaw)
+                {
+                    existing.vulnerability = Mathf.Clamp01(vulnerability);
+                    AddBoundaryFallbackPoint(position);
                 }
                 return existing;
             }
 
+            bool isOutlineVertex = FindOutlineVertex(position) >= 0;
             var node = new CrackNode
             {
                 id = crackNodes.Count,
                 localPosition = position,
-                vulnerability = Mathf.Clamp01(vulnerability),
+                vulnerability = isSurfaceFlaw ||
+                    (isOutlineVertex && !preserveBoundaryFallbackVulnerability)
+                        ? 0f
+                        : Mathf.Clamp01(vulnerability),
                 isSurfaceFlaw = isSurfaceFlaw
             };
             crackNodes.Add(node);
+            if (preserveBoundaryFallbackVulnerability)
+            {
+                AddBoundaryFallbackPoint(position);
+            }
             return node;
+        }
+
+        private bool IsBoundaryFallbackPoint(Vector2 position)
+        {
+            for (int i = 0; i < boundaryFallbackPoints.Count; i++)
+            {
+                if (Approximately(boundaryFallbackPoints[i], position))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private void AddBoundaryFallbackPoint(Vector2 position)
+        {
+            if (!IsBoundaryFallbackPoint(position))
+            {
+                boundaryFallbackPoints.Add(position);
+            }
+        }
+
+        private void RemoveBoundaryFallbackPoint(Vector2 position)
+        {
+            for (int i = boundaryFallbackPoints.Count - 1; i >= 0; i--)
+            {
+                if (Approximately(boundaryFallbackPoints[i], position))
+                {
+                    boundaryFallbackPoints.RemoveAt(i);
+                }
+            }
         }
 
         private CrackNode FindNodeAt(Vector2 position)
@@ -191,7 +246,7 @@ namespace GlassShooter.Gameplay
                 return nearest;
             }
 
-            return GetOrCreateNode(impactLocalPosition, 1f, true);
+            return GetOrCreateNode(impactLocalPosition, 0f, true);
         }
 
         private CrackNode FindCrackTipFromSurfaceRootOrFallback(

@@ -229,6 +229,12 @@ namespace GlassShooter.Gameplay
                 CrackNode node = crackNodes[nodeIndex];
                 node.localPosition = center + (node.localPosition - center) * multiplier;
             }
+            for (int pointIndex = 0; pointIndex < boundaryFallbackPoints.Count; pointIndex++)
+            {
+                Vector2 point = boundaryFallbackPoints[pointIndex];
+                boundaryFallbackPoints[pointIndex] =
+                    center + (point - center) * multiplier;
+            }
 
             float scaledArea = Mathf.Abs(SignedArea(outline));
             float minimumArea = glassStatus != null
@@ -255,6 +261,25 @@ namespace GlassShooter.Gameplay
                     : Mathf.Max(0.05f, scaledArea);
             }
             return true;
+        }
+
+        /// <summary>
+        /// 毎秒の線形寸法倍率を、経過時間に応じた倍率へ変換して継続縮小します。
+        /// </summary>
+        public bool ApplyContinuousSizeMultiplier(
+            float linearMultiplierPerSecond,
+            float deltaTime)
+        {
+            float safePerSecondMultiplier = Mathf.Clamp01(linearMultiplierPerSecond);
+            float frameMultiplier = Mathf.Pow(
+                safePerSecondMultiplier,
+                Mathf.Max(0f, deltaTime));
+            bool remains = ApplySizeMultiplier(frameMultiplier);
+            if (remains)
+            {
+                RenderCracks();
+            }
+            return remains;
         }
 
         private void AccumulateFailedImpactAndReleaseTerminalFragment(

@@ -41,6 +41,7 @@ namespace GlassShooter.Gameplay
         [SerializeField, Min(0f)] private float maximumScanRadius = 20f;
         [SerializeField, Range(0.01f, 1f)] private float minimumVulnerabilityCostMultiplier = 0.1f;
         [SerializeField, Min(0f)] private float angleCostWeight = 1f;
+        [SerializeField, Min(0f)] private float surfaceParallelRejectionDistance = 0.01f;
 
         [Header("Terminal Fragment Release")]
         [SerializeField, Min(0f)] private float terminalFragmentMaximumArea = 0.5f;
@@ -52,6 +53,7 @@ namespace GlassShooter.Gameplay
 
         private readonly List<CrackNode> crackNodes = new List<CrackNode>();
         private readonly List<CrackConnection> crackConnections = new List<CrackConnection>();
+        private readonly List<Vector2> boundaryFallbackPoints = new List<Vector2>();
         private System.Random crackRandom;
         private bool crackGraphInitialized;
         private bool isReleasedFromAnchor;
@@ -199,7 +201,8 @@ namespace GlassShooter.Gameplay
         public void Initialize(
             Vector2[] outlinePoints,
             Vector2[][] crackPaths = null,
-            bool releasedFromAnchor = false)
+            bool releasedFromAnchor = false,
+            Vector2[] inheritedBoundaryFallbackPoints = null)
         {
             if (outlinePoints == null || outlinePoints.Length < 3)
             {
@@ -209,6 +212,11 @@ namespace GlassShooter.Gameplay
             ResolveMissingReferences();
             outline = CleanPolygon(outlinePoints);
             cracks = CloneCracks(crackPaths);
+            boundaryFallbackPoints.Clear();
+            if (inheritedBoundaryFallbackPoints != null)
+            {
+                boundaryFallbackPoints.AddRange(inheritedBoundaryFallbackPoints);
+            }
             crackGraphInitialized = false;
             isReleasedFromAnchor |= releasedFromAnchor;
             ApplyAnchorState();
@@ -255,6 +263,7 @@ namespace GlassShooter.Gameplay
         public void SetCracks(Vector2[][] crackPaths)
         {
             cracks = CloneCracks(crackPaths);
+            boundaryFallbackPoints.Clear();
             crackGraphInitialized = false;
             RenderCracks();
         }

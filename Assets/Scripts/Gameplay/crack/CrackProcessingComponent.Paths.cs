@@ -80,14 +80,16 @@ namespace GlassShooter.Gameplay
                     candidate.from = GetOrCreateNode(
                         candidate.from.localPosition,
                         candidate.from.vulnerability,
-                        false);
+                        false,
+                        true);
                 }
                 if (candidate.to.id < 0)
                 {
                     candidate.to = GetOrCreateNode(
                         candidate.to.localPosition,
                         candidate.to.vulnerability,
-                        false);
+                        false,
+                        true);
                 }
                 if (AreDirectlyConnected(candidate.from.id, candidate.to.id))
                 {
@@ -592,6 +594,7 @@ namespace GlassShooter.Gameplay
                 0.01f,
                 1f);
             angleCostWeight = Mathf.Max(0f, angleCostWeight);
+            surfaceParallelRejectionDistance = Mathf.Max(0f, surfaceParallelRejectionDistance);
             terminalFragmentMaximumArea = Mathf.Max(0f, terminalFragmentMaximumArea);
             anchorFailureEnergy = Mathf.Max(0f, anchorFailureEnergy);
             boundaryCompletionDistance = Mathf.Max(0f, boundaryCompletionDistance);

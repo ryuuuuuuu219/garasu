@@ -278,6 +278,7 @@ namespace GlassShooter.Gameplay
             float distance = delta.magnitude;
             if (distance <= GeometryEpsilon || distance > maximumDistance ||
                 !IsPointInsideOrOnOutline(to.localPosition) ||
+                IsSurfaceParallelCandidate(from, to.localPosition) ||
                 IntersectsOuterBoundaryBeforeTarget(from.localPosition, to.localPosition) ||
                 IntersectsExistingCrackImproperly(from, to))
             {
@@ -304,6 +305,39 @@ namespace GlassShooter.Gameplay
                 fractureCost = CalculateFractureCost(from, to, safeReference, direction, distance)
             };
             return true;
+        }
+
+        private bool IsSurfaceParallelCandidate(CrackNode from, Vector2 target)
+        {
+            if (from == null ||
+                !from.isSurfaceFlaw ||
+                surfaceParallelRejectionDistance <= GeometryEpsilon ||
+                outline == null ||
+                outline.Length < 3)
+            {
+                return false;
+            }
+
+            float thresholdSquared =
+                surfaceParallelRejectionDistance * surfaceParallelRejectionDistance;
+            for (int edgeIndex = 0; edgeIndex < outline.Length; edgeIndex++)
+            {
+                Vector2 edgeStart = outline[edgeIndex];
+                Vector2 edgeEnd = outline[(edgeIndex + 1) % outline.Length];
+                if (!IsPointOnSegment(from.localPosition, edgeStart, edgeEnd))
+                {
+                    continue;
+                }
+
+                // 表面傷が属する辺の近傍へ進む候補は、外周をたどるクラックになる。
+                // 予算適用前に拒否することで、この候補分の衝撃エネルギーは消費しない。
+                Vector2 closest = ClosestPointOnSegment(target, edgeStart, edgeEnd);
+                if ((target - closest).sqrMagnitude <= thresholdSquared)
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private float CalculateFractureCost(

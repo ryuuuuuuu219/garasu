@@ -1,5 +1,6 @@
 ﻿using PolygonRendering.Input;
 using UnityEngine;
+using System.Collections.Generic;
 
 namespace GlassShooter.Gameplay
 {
@@ -13,6 +14,7 @@ namespace GlassShooter.Gameplay
     {
         [Header("Movement")]
         [SerializeField, Min(0f)] private float moveSpeed = 7f;
+        [SerializeField, Min(0f)] private float collisionVelocityRecovery = 1f;
 
         [Header("Shooting")]
         [SerializeField] private Projectile projectilePrefab = null;
@@ -33,26 +35,48 @@ namespace GlassShooter.Gameplay
         private KeyboardInputState inputState;
         private Rigidbody2D playerRigidbody;
         private Vector2 combinedMovementOverrideVelocity;
+        private Vector2 lastCommandedVelocity;
         private float nextFireTime;
         private LineRenderer lr;
         private PolygonCollider2D hitbox;
         private Vector2[][] baseHitboxPaths;
+        private SmallLightComponent smallLight;
 
         public Vector2 MoveLimitMin => Movelimitmin;
         public Vector2 MoveLimitMax => Movelimitmax;
         public BulletStatus BulletStatus => bulletStatus;
         public Projectile ProjectilePrefab => projectilePrefab;
         public float MoveSpeed => moveSpeed;
+        public float Mass => playerRigidbody != null ? playerRigidbody.mass : 0f;
         public float FireInterval => bulletStatus != null && bulletStatus.FireRate > 0f
             ? 1f / bulletStatus.FireRate
             : fireInterval;
 
         /// <summary>成長画面で確定したプレイヤーステータスを反映します。</summary>
-        public void ApplyGrowthStatus(float newMoveSpeed, float newFireInterval, float hitboxScale)
+        public void ApplyGrowthStatus(
+            float newMoveSpeed,
+            float newFireInterval,
+            float hitboxScale,
+            float newMass,
+            bool smallLightUnlocked,
+            float smallLightRange,
+            float smallLightAngle,
+            float smallLightLinearMultiplierPerSecond)
         {
             moveSpeed = Mathf.Max(0f, newMoveSpeed);
             fireInterval = Mathf.Max(0.01f, newFireInterval);
             ApplyHitboxScale(hitboxScale);
+            if (playerRigidbody == null)
+            {
+                playerRigidbody = GetComponent<Rigidbody2D>();
+            }
+            playerRigidbody.mass = Mathf.Max(0.0001f, newMass);
+            EnsureSmallLight();
+            smallLight.Configure(
+                smallLightUnlocked,
+                smallLightRange,
+                smallLightAngle,
+                smallLightLinearMultiplierPerSecond);
         }
 
         private void Awake()
@@ -67,6 +91,7 @@ namespace GlassShooter.Gameplay
             playerRigidbody.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
             playerRigidbody.interpolation = RigidbodyInterpolation2D.Interpolate;
             CacheHitbox();
+            EnsureSmallLight();
             CreateBackgroundGrid();
 
             GameObject child = new GameObject("LineRenderer");
@@ -219,8 +244,20 @@ namespace GlassShooter.Gameplay
             }
 
             Vector2 inputVelocity = inputDirection * moveSpeed;
-            ClampMovementToBounds(ref inputVelocity);
-            playerRigidbody.linearVelocity = inputVelocity;
+
+            // 速度を直接上書きすると、直前の物理ステップで受けた衝突反動が消える。
+            // 前回指示した速度との差を物理由来の速度として残し、入力操作とは別に減衰させる。
+            Vector2 collisionVelocity =
+                playerRigidbody.linearVelocity - lastCommandedVelocity;
+            collisionVelocity = Vector2.MoveTowards(
+                collisionVelocity,
+                Vector2.zero,
+                collisionVelocityRecovery * Time.fixedDeltaTime);
+
+            Vector2 nextVelocity = inputVelocity + collisionVelocity;
+            ClampMovementToBounds(ref nextVelocity);
+            lastCommandedVelocity = nextVelocity;
+            playerRigidbody.linearVelocity = nextVelocity;
         }
 
         /// <summary>
@@ -310,6 +347,24 @@ namespace GlassShooter.Gameplay
             }
         }
 
+        private void EnsureSmallLight()
+        {
+            if (smallLight != null)
+            {
+                return;
+            }
+
+            smallLight = GetComponentInChildren<SmallLightComponent>(true);
+            if (smallLight != null)
+            {
+                return;
+            }
+
+            GameObject field = new GameObject("SmallLight");
+            field.transform.SetParent(transform, false);
+            smallLight = field.AddComponent<SmallLightComponent>();
+        }
+
         private void Fire()
         {
             if (projectilePrefab == null || bulletStatus == null)
@@ -335,6 +390,204 @@ namespace GlassShooter.Gameplay
                 ? existingStatus
                 : projectile.gameObject.AddComponent<BulletStatus>();
             copy.CopyFrom(bulletStatus);
+        }
+    }
+
+    /// <summary>
+    /// プレイヤー前方の扇形領域へ触れている、固定されていないガラスを継続縮小します。
+    /// </summary>
+    [DisallowMultipleComponent]
+    public sealed partial class SmallLightComponent : MonoBehaviour
+    {
+        private const int MaximumArcSegments = 64;
+        private const float DegreesPerArcSegment = 2f;
+
+        private readonly HashSet<CrackProcessingComponent> processedTargets =
+            new HashSet<CrackProcessingComponent>();
+
+        private PolygonCollider2D fieldCollider;
+        private Mesh fieldMesh;
+        private MeshRenderer fieldRenderer;
+        private Material fieldMaterial;
+        private float linearMultiplierPerSecond = 1f;
+        private float currentRange = -1f;
+        private float currentAngle = -1f;
+
+        public void Configure(
+            bool unlocked,
+            float range,
+            float angleDegrees,
+            float newLinearMultiplierPerSecond)
+        {
+            EnsureComponents();
+
+            float safeRange = Mathf.Max(0f, range);
+            float safeAngle = Mathf.Clamp(angleDegrees, 0f, 360f);
+            linearMultiplierPerSecond = Mathf.Clamp01(newLinearMultiplierPerSecond);
+
+            bool geometryChanged =
+                !Mathf.Approximately(currentRange, safeRange) ||
+                !Mathf.Approximately(currentAngle, safeAngle);
+            currentRange = safeRange;
+            currentAngle = safeAngle;
+            if (geometryChanged)
+            {
+                RebuildFieldGeometry();
+            }
+
+            bool active = unlocked && safeRange > 0f && safeAngle > 0f;
+            fieldCollider.enabled = active;
+            fieldRenderer.enabled = active;
+        }
+
+        private void Awake()
+        {
+            EnsureComponents();
+            fieldCollider.enabled = false;
+            fieldRenderer.enabled = false;
+        }
+
+        private void FixedUpdate()
+        {
+            processedTargets.Clear();
+        }
+
+        private void OnTriggerStay2D(Collider2D other)
+        {
+            if (!fieldCollider.enabled ||
+                linearMultiplierPerSecond >= 1f ||
+                other == null)
+            {
+                return;
+            }
+
+            CrackProcessingComponent target =
+                other.GetComponentInParent<CrackProcessingComponent>();
+            if (target == null)
+            {
+                return;
+            }
+
+            Rigidbody2D body = target.GetComponent<Rigidbody2D>();
+            if (body == null ||
+                body.bodyType != RigidbodyType2D.Dynamic ||
+                body.constraints != RigidbodyConstraints2D.None)
+            {
+                return;
+            }
+
+            if (!processedTargets.Add(target))
+            {
+                return;
+            }
+
+            target.ApplyContinuousSizeMultiplier(
+                linearMultiplierPerSecond,
+                Time.fixedDeltaTime);
+        }
+
+        private void EnsureComponents()
+        {
+            if (fieldCollider == null)
+            {
+                fieldCollider = GetComponent<PolygonCollider2D>();
+                if (fieldCollider == null)
+                {
+                    fieldCollider = gameObject.AddComponent<PolygonCollider2D>();
+                }
+                fieldCollider.isTrigger = true;
+            }
+
+            MeshFilter filter = GetComponent<MeshFilter>();
+            if (filter == null)
+            {
+                filter = gameObject.AddComponent<MeshFilter>();
+            }
+            if (fieldMesh == null)
+            {
+                fieldMesh = new Mesh
+                {
+                    name = "SmallLightFieldMesh"
+                };
+                filter.sharedMesh = fieldMesh;
+            }
+
+            if (fieldRenderer == null)
+            {
+                fieldRenderer = GetComponent<MeshRenderer>();
+                if (fieldRenderer == null)
+                {
+                    fieldRenderer = gameObject.AddComponent<MeshRenderer>();
+                }
+                fieldRenderer.sortingOrder = -10;
+            }
+
+            if (fieldMaterial == null)
+            {
+                Shader shader = Shader.Find("Sprites/Default");
+                if (shader != null)
+                {
+                    fieldMaterial = new Material(shader)
+                    {
+                        name = "SmallLightFieldMaterial",
+                        color = new Color(1f, 0.92f, 0.35f, 0.16f)
+                    };
+                    fieldRenderer.sharedMaterial = fieldMaterial;
+                }
+            }
+        }
+
+        private void RebuildFieldGeometry()
+        {
+            int segmentCount = Mathf.Clamp(
+                Mathf.CeilToInt(currentAngle / DegreesPerArcSegment),
+                2,
+                MaximumArcSegments);
+            Vector2[] points = new Vector2[segmentCount + 2];
+            points[0] = Vector2.zero;
+
+            float halfAngle = currentAngle * 0.5f;
+            for (int segment = 0; segment <= segmentCount; segment++)
+            {
+                float t = segment / (float)segmentCount;
+                float angle = Mathf.Lerp(-halfAngle, halfAngle, t) * Mathf.Deg2Rad;
+                points[segment + 1] = new Vector2(
+                    Mathf.Sin(angle) * currentRange,
+                    Mathf.Cos(angle) * currentRange);
+            }
+            fieldCollider.points = points;
+
+            Vector3[] vertices = new Vector3[points.Length];
+            for (int i = 0; i < points.Length; i++)
+            {
+                vertices[i] = points[i];
+            }
+
+            int[] triangles = new int[segmentCount * 3];
+            for (int segment = 0; segment < segmentCount; segment++)
+            {
+                int triangleIndex = segment * 3;
+                triangles[triangleIndex] = 0;
+                triangles[triangleIndex + 1] = segment + 1;
+                triangles[triangleIndex + 2] = segment + 2;
+            }
+
+            fieldMesh.Clear();
+            fieldMesh.vertices = vertices;
+            fieldMesh.triangles = triangles;
+            fieldMesh.RecalculateBounds();
+        }
+
+        private void OnDestroy()
+        {
+            if (fieldMaterial != null)
+            {
+                Destroy(fieldMaterial);
+            }
+            if (fieldMesh != null)
+            {
+                Destroy(fieldMesh);
+            }
         }
     }
 }

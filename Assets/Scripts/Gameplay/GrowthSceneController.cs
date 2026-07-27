@@ -184,9 +184,16 @@ namespace GlassShooter.Gameplay
                 row.value.text = $"{growth.FormatValue(definition.Id)}   レベル {level}";
                 bool canUpgrade = growth.CanUpgrade(definition.Id);
                 row.button.interactable = canUpgrade && resource.Resource >= growth.GetUpgradeCost(definition.Id);
-                row.buttonLabel.text = canUpgrade
-                    ? $"強化  {growth.GetUpgradeCost(definition.Id)}"
-                    : definition.BaseCost == 0 ? "準備中" : "最大";
+                bool requiresSmallLightUnlock =
+                    (definition.Id == GrowthStatId.SmallLightRange ||
+                    definition.Id == GrowthStatId.SmallLightAngle ||
+                    definition.Id == GrowthStatId.SmallLightShrink) &&
+                    growth.GetLevel(GrowthStatId.SmallLightUnlock) <= 0;
+                row.buttonLabel.text = requiresSmallLightUnlock
+                    ? "要開放"
+                    : canUpgrade
+                        ? $"強化  {growth.GetUpgradeCost(definition.Id)}"
+                        : definition.BaseCost == 0 ? "準備中" : "最大";
             }
         }
 
