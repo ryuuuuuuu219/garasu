@@ -65,22 +65,30 @@ namespace Gameplay
 
         public string BossDescription(GameObject main)
         {
-            BossGlassComponent status;
-            main.TryGetComponent<BossGlassComponent>(out status);
-            string bossname = "";
+            string bossName = main.name;
+            string bossAbility = "回復能力";
             if (main.name.StartsWith("Boss_A_core"))
             {
-                bossname = "\n回復コア\n";
+                bossName = "回復プラットフォーム+装甲";
+            }
+            else if (main.name.StartsWith("battery_A"))
+            {
+                bossName = "妨害弾連射プラットフォーム";
+                bossAbility = "妨害弾連射";
+            }
+            else if (main.name.StartsWith("battery_B"))
+            {
+                bossName = "誘導妨害弾プラットフォーム";
+                bossAbility = "誘導妨害弾斉射";
             }
 
             string Message =
             "//警告//\n" +
             "ボス出現\n\n" +
-            main.name +
-            bossname +
+            bossName + "\n" +
             "\n機能解析……\n" +
             "・不可侵領域形成\n" +
-            "・回復能力\n\n" +
+            $"・{bossAbility}\n\n" +
             "カウントダウン開始……";
 
             return Message;
@@ -189,6 +197,7 @@ namespace Gameplay
             CreateRedBorder(panelRect, 5f);
 
             warningText = CreateText("WarningText", panelRect, 34f, TextAlignmentOptions.Center);
+            warningText.textWrappingMode = TextWrappingModes.Normal;
             SetOffsets(warningText.rectTransform, 30f, 30f, 30f, 30f);
 
             countdownText = CreateText("CountdownText", panelRect, 31f, TextAlignmentOptions.Center);
@@ -219,9 +228,10 @@ namespace Gameplay
             panelRect.anchorMin = new Vector2(0.5f, 0.5f);
             panelRect.anchorMax = new Vector2(0.5f, 0.5f);
             panelRect.anchoredPosition = Vector2.zero;
-            panelRect.sizeDelta = new Vector2(warningPanelWidth, CalculateWarningPanelHeight(message));
-
             warningText.text = message;
+            panelRect.sizeDelta = new Vector2(
+                warningPanelWidth,
+                CalculateWarningPanelHeight(message));
             warningText.maxVisibleCharacters = 0;
             warningText.gameObject.SetActive(true);
             countdownText.gameObject.SetActive(false);
@@ -242,7 +252,19 @@ namespace Gameplay
                 }
             }
 
-            float calculatedHeight = lineCount * warningLineHeight + warningVerticalPadding;
+            float lineBasedHeight = lineCount * warningLineHeight;
+            float availableTextWidth = Mathf.Max(
+                1f,
+                warningPanelWidth - 60f);
+            float preferredTextHeight = warningText != null
+                ? warningText.GetPreferredValues(
+                    message,
+                    availableTextWidth,
+                    Mathf.Infinity).y
+                : 0f;
+            float calculatedHeight =
+                Mathf.Max(lineBasedHeight, preferredTextHeight) +
+                warningVerticalPadding;
             float minimum = Mathf.Min(minimumWarningPanelHeight, maximumWarningPanelHeight);
             float maximum = Mathf.Max(minimumWarningPanelHeight, maximumWarningPanelHeight);
             return Mathf.Clamp(calculatedHeight, minimum, maximum);

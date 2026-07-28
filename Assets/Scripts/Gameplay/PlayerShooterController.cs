@@ -421,9 +421,6 @@ namespace GlassShooter.Gameplay
         private Mesh fieldMesh;
         private MeshRenderer fieldRenderer;
         private Material fieldMaterial;
-        private float linearMultiplierPerSecond = 1f;
-        private float currentRange = -1f;
-        private float currentAngle = -1f;
 
         public void Configure(
             bool unlocked,
@@ -435,28 +432,27 @@ namespace GlassShooter.Gameplay
 
             float safeRange = Mathf.Max(0f, range);
             float safeAngle = Mathf.Clamp(angleDegrees, 0f, 360f);
-            linearMultiplierPerSecond = Mathf.Clamp01(newLinearMultiplierPerSecond);
 
             bool geometryChanged =
-                !Mathf.Approximately(currentRange, safeRange) ||
-                !Mathf.Approximately(currentAngle, safeAngle);
-            currentRange = safeRange;
-            currentAngle = safeAngle;
+                !Mathf.Approximately(this.range, safeRange) ||
+                !Mathf.Approximately(this.angleDegrees, safeAngle);
+            this.unlocked = unlocked;
+            this.range = safeRange;
+            this.angleDegrees = safeAngle;
+            linearMultiplierPerSecond = Mathf.Clamp01(newLinearMultiplierPerSecond);
             if (geometryChanged)
             {
                 RebuildFieldGeometry();
             }
 
-            bool active = unlocked && safeRange > 0f && safeAngle > 0f;
-            fieldCollider.enabled = active;
-            fieldRenderer.enabled = active;
+            ApplyActiveState();
         }
 
         private void Awake()
         {
             EnsureComponents();
-            fieldCollider.enabled = false;
-            fieldRenderer.enabled = false;
+            RebuildFieldGeometry();
+            ApplyActiveState();
         }
 
         private void FixedUpdate()
@@ -552,20 +548,20 @@ namespace GlassShooter.Gameplay
         private void RebuildFieldGeometry()
         {
             int segmentCount = Mathf.Clamp(
-                Mathf.CeilToInt(currentAngle / DegreesPerArcSegment),
+                Mathf.CeilToInt(angleDegrees / DegreesPerArcSegment),
                 2,
                 MaximumArcSegments);
             Vector2[] points = new Vector2[segmentCount + 2];
             points[0] = Vector2.zero;
 
-            float halfAngle = currentAngle * 0.5f;
+            float halfAngle = angleDegrees * 0.5f;
             for (int segment = 0; segment <= segmentCount; segment++)
             {
                 float t = segment / (float)segmentCount;
                 float angle = Mathf.Lerp(-halfAngle, halfAngle, t) * Mathf.Deg2Rad;
                 points[segment + 1] = new Vector2(
-                    Mathf.Sin(angle) * currentRange,
-                    Mathf.Cos(angle) * currentRange);
+                    Mathf.Sin(angle) * range,
+                    Mathf.Cos(angle) * range);
             }
             fieldCollider.points = points;
 
@@ -588,6 +584,13 @@ namespace GlassShooter.Gameplay
             fieldMesh.vertices = vertices;
             fieldMesh.triangles = triangles;
             fieldMesh.RecalculateBounds();
+        }
+
+        private void ApplyActiveState()
+        {
+            bool active = unlocked && range > 0f && angleDegrees > 0f;
+            fieldCollider.enabled = active;
+            fieldRenderer.enabled = active;
         }
 
         private void OnDestroy()
