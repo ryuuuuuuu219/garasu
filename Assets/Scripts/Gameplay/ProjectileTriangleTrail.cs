@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using PolygonRendering;
 using UnityEngine;
 
 namespace GlassShooter.Gameplay
@@ -28,6 +29,9 @@ namespace GlassShooter.Gameplay
 
         [SerializeField]
         private bool isTrigger;
+
+        [SerializeField]
+        private bool createFallingGlassTriangles;
 
         [Header("Debug")]
         [SerializeField]
@@ -78,6 +82,31 @@ namespace GlassShooter.Gameplay
         public void SetVelocityProvider(Func<Vector2> provider)
         {
             velocityProvider = provider;
+        }
+
+        /// <summary>
+        /// 軌跡幅と1秒あたりの記録回数を実行時に設定します。
+        /// AddComponent直後の設定にも対応するため、初期点を現在位置で記録し直します。
+        /// </summary>
+        public void ConfigureSampling(
+            float newHalfWidth,
+            float samplesPerSecond)
+        {
+            halfWidth = Mathf.Max(0.01f, newHalfWidth);
+            sampleInterval = 1f / Mathf.Max(0.001f, samplesPerSecond);
+
+            if (isActiveAndEnabled)
+            {
+                InitializeTrail();
+            }
+        }
+
+        /// <summary>
+        /// 以後生成する三角形を、報酬なしで重力落下する可視ガラスにします。
+        /// </summary>
+        public void EnableFallingGlassTriangles()
+        {
+            createFallingGlassTriangles = true;
         }
 
         private void InitializeTrail()
@@ -221,9 +250,13 @@ namespace GlassShooter.Gameplay
             Transform root = GetOrCreateColliderRoot();
             GameObject triangleObject = new GameObject(
                 $"TrailTriangle_{root.childCount:0000}");
+            triangleObject.layer = gameObject.layer;
             Transform triangleTransform = triangleObject.transform;
             triangleTransform.SetParent(root, false);
-            triangleTransform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+            Vector2 worldCenter = (worldA + worldB + worldC) / 3f;
+            triangleTransform.SetPositionAndRotation(
+                worldCenter,
+                Quaternion.identity);
             triangleTransform.localScale = Vector3.one;
 
             Vector2 localA = triangleTransform.InverseTransformPoint(worldA);
@@ -233,7 +266,51 @@ namespace GlassShooter.Gameplay
             PolygonCollider2D triangleCollider =
                 triangleObject.AddComponent<PolygonCollider2D>();
             triangleCollider.isTrigger = isTrigger;
-            triangleCollider.points = new[] { localA, localB, localC };
+            Vector2[] localPoints = { localA, localB, localC };
+            triangleCollider.points = localPoints;
+
+            if (createFallingGlassTriangles)
+            {
+                ConfigureFallingGlassTriangle(
+                    triangleObject,
+                    localPoints,
+                    Mathf.Abs(cross) * 0.5f);
+            }
+        }
+
+        private void ConfigureFallingGlassTriangle(
+            GameObject triangleObject,
+            Vector2[] localPoints,
+            float worldArea)
+        {
+            GlassStatus status = triangleObject.AddComponent<GlassStatus>();
+            if (TryGetComponent(out GlassStatus sourceStatus))
+            {
+                status.CopyFrom(sourceStatus);
+            }
+            status.SetResourceRewardSuppressed(true);
+            status.SetResourceRewardArea(0f);
+
+            Rigidbody2D body = triangleObject.AddComponent<Rigidbody2D>();
+            body.bodyType = RigidbodyType2D.Dynamic;
+            body.gravityScale = status.GravityMultiplier;
+            body.constraints = RigidbodyConstraints2D.None;
+            body.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+            body.interpolation = RigidbodyInterpolation2D.Interpolate;
+            body.mass = status.CalculateMass(worldArea);
+
+            GameObject outlineObject = new GameObject("GlassSurfaceLineRenderer");
+            outlineObject.layer = triangleObject.layer;
+            outlineObject.transform.SetParent(triangleObject.transform, false);
+            LineRenderer line = outlineObject.AddComponent<LineRenderer>();
+            Shader shader = Shader.Find("Sprites/Default");
+            if (shader != null)
+            {
+                line.material = new Material(shader);
+            }
+            GlassSurfaceLineRenderer outline =
+                outlineObject.AddComponent<GlassSurfaceLineRenderer>();
+            outline.SetOutline(localPoints);
         }
 
         private Transform GetOrCreateColliderRoot()

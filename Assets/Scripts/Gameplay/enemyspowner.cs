@@ -112,6 +112,7 @@ namespace Gameplay
                     return CreateLowerHalfRingPositions(12, 3f, 12, 1f);
                 case "Boss_A_core":
                 case "battery_A":
+                case "battery_B":
                     return CreateRegularPolygonPositions(6, 1f, 0f);
 
 
@@ -270,13 +271,16 @@ namespace Gameplay
             string enemyType = "Basic";
             if (difficulty % 5 == 0)
             {
-                switch (difficulty / 5 % 2)
+                switch (difficulty / 5 % 3)
                 {
                     case 0:
                         enemyType = "Boss_A_core";
                         break;
                     case 1:
                         enemyType = "battery_A";
+                        break;
+                    case 2:
+                        enemyType = "battery_B";
                         break;
                 }
             }
@@ -370,6 +374,12 @@ namespace Gameplay
                     battery_A battery = enemy.AddComponent<battery_A>();
                     enemy.AddComponent<BossGlassComponent>();
                     battery.Initialize(this);
+                    manager.apperdelay(enemy);
+                    break;
+                case "battery_B":
+                    battery_B homingBattery = enemy.AddComponent<battery_B>();
+                    enemy.AddComponent<BossGlassComponent>();
+                    homingBattery.Initialize(this);
                     manager.apperdelay(enemy);
                     break;
             }
