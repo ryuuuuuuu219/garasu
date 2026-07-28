@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 3879124570693149608}
   - component: {fileID: 8043241389362196975}
   - component: {fileID: 2392873469250993363}
+  - component: {fileID: 9136472058127346102}
   m_Layer: 0
   m_Name: Projectile
   m_TagString: Untagged
@@ -236,3 +237,25 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GlassShooter.Gameplay.Projectile
   speed: 12
   destroyY: 6.5
+--- !u!114 &9136472058127346102
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6150919710984116754}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 67bfe184d9534d2984a7a9138b209c31, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::GlassShooter.Gameplay.ProjectileTriangleTrail
+  halfWidth: 0.5
+  sampleInterval: 0.1
+  colliderRoot: {fileID: 0}
+  minimumDoubleArea: 0.000001
+  isTrigger: 0
+  drawDebugGizmos: 1
+  debugPointRadius: 0.04
+  leftPointColor: {r: 0, g: 1, b: 1, a: 1}
+  rightPointColor: {r: 1, g: 0, b: 1, a: 1}
+  triangleEdgeColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}

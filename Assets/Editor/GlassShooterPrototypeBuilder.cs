@@ -68,6 +68,7 @@ public static class GlassShooterPrototypeBuilder
         collider.points = TrianglePoints(0.18f);
 
         Projectile projectile = root.AddComponent<Projectile>();
+        root.AddComponent<ProjectileTriangleTrail>();
         GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, ProjectilePath);
         Object.DestroyImmediate(root);
         return prefab.GetComponent<Projectile>();
