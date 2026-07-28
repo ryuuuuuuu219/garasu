@@ -109,6 +109,11 @@ namespace GlassShooter.Gameplay
 
         internal void HandleProjectileImpactCore(Vector2 projectileWorldPosition, BulletStatus bulletStatus)
         {
+            if (isSeparating || isDestroyPending)
+            {
+                return;
+            }
+
             EnsureGeometryInitialized();
             // Triggerには接触点情報がないため、弾中心をガラス外周へ投影して代表接触点にする。
             Vector2 projectileLocalPosition = transform.InverseTransformPoint(projectileWorldPosition);
@@ -120,7 +125,7 @@ namespace GlassShooter.Gameplay
         private float pooledImpactEnergy;
         internal void HandleBulletImpactCore(Vector2 impactWorldPosition, BulletStatus bulletStatus)
         {
-            if (isSeparating)
+            if (isSeparating || isDestroyPending)
             {
                 return;
             }
@@ -253,6 +258,11 @@ namespace GlassShooter.Gameplay
 
         private bool ApplySizeMultiplier(float multiplier)
         {
+            if (isDestroyPending)
+            {
+                return false;
+            }
+
             multiplier = Mathf.Max(0f, multiplier);
             if (Mathf.Approximately(multiplier, 1f) || outline == null || outline.Length < 3)
             {
@@ -284,6 +294,11 @@ namespace GlassShooter.Gameplay
                 : 0.04f;
             if (scaledArea <= minimumArea + GeometryEpsilon)
             {
+                isDestroyPending = true;
+                foreach (Collider2D fragmentCollider in GetComponentsInChildren<Collider2D>(true))
+                {
+                    fragmentCollider.enabled = false;
+                }
                 Destroy(gameObject);
                 return false;
             }

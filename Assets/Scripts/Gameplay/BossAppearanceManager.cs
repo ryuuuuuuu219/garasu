@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 namespace Gameplay
@@ -151,7 +150,7 @@ namespace Gameplay
             activeTargets = null;
             if (hasSurvivingTarget)
             {
-                LoadGrowthScene();
+                GrowthSceneController.LoadGrowthScene();
                 yield break;
             }
 
@@ -562,19 +561,6 @@ namespace Gameplay
             }
 
             return false;
-        }
-
-        private void LoadGrowthScene()
-        {
-            if (!Application.CanStreamedLevelBeLoaded(GrowthSceneController.SceneName))
-            {
-                Debug.LogError(
-                    $"Build Settingsに '{GrowthSceneController.SceneName}' が登録されていません。",
-                    this);
-                return;
-            }
-
-            SceneManager.LoadScene(GrowthSceneController.SceneName);
         }
 
         private void CancelCurrentPresentation()

@@ -8,6 +8,21 @@ namespace GlassShooter.Gameplay
     {
         [SerializeField] private float destroyBelowY = -8f;
 
+        private void Update()
+        {
+            if (transform.position.y <= destroyBelowY)
+            {
+                if (TryGetComponent(out GlassStatus status))
+                {
+                    status.DestroyGlass();
+                }
+                else
+                {
+                    Destroy(gameObject);
+                }
+            }
+        }
+
         public void ConsumeBullet(BulletStatus bulletStatus)
         {
             if (bulletStatus == null)

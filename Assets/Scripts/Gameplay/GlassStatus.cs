@@ -27,8 +27,6 @@ namespace GlassShooter.Gameplay
     [DisallowMultipleComponent]
     public sealed class GlassStatus : MonoBehaviour
     {
-        private const float MinimumRewardEnergyMultiplier = 0.001f;
-
         [Header("Basic Physical Properties")]
         [SerializeField, Min(0.0001f)] private float thickness = 1f;
         [SerializeField, Min(0.0001f)] private float density = 1f;
@@ -54,6 +52,7 @@ namespace GlassShooter.Gameplay
         [SerializeField, Min(0f)] private float fragmentAttackMultiplier = 1f;
         [SerializeField, Min(0f)] private float fragmentFallSpeedMultiplier = 1f;
         [SerializeField, Min(0f)] public float resourceRewardArea;
+        [SerializeField, Min(0)] private int difficultyWave;
 
         private bool resourceRewardGranted;
         private bool isResourceRewardSuppressed;
@@ -76,9 +75,9 @@ namespace GlassShooter.Gameplay
         public float FixedPositionStrength => fixedPositionStrength;
         public float FragmentAttackMultiplier => fragmentAttackMultiplier;
         public float FragmentFallSpeedMultiplier => fragmentFallSpeedMultiplier;
+        public int DifficultyWave => difficultyWave;
         public float ResourceRewardMultiplier =>
-            1f + Mathf.Log10(
-                1f / Mathf.Max(enemyCrackEnergyMultiplier, MinimumRewardEnergyMultiplier));
+            1f + 0.235f * Mathf.Pow(difficultyWave, 1.8f);
         public float ResourceReward => CalculateResourceReward(resourceRewardArea);
         public bool IsResourceRewardSuppressed => isResourceRewardSuppressed;
 
@@ -94,7 +93,7 @@ namespace GlassShooter.Gameplay
             resourceRewardGranted = false;
         }
 
-        /// <summary>敵の基礎亀裂エネルギー倍率から資源報酬を補正します。</summary>
+        /// <summary>敵の難易度waveから資源報酬を補正します。</summary>
         public float CalculateResourceReward(float baseReward)
         {
             return isResourceRewardSuppressed
@@ -160,6 +159,7 @@ namespace GlassShooter.Gameplay
             int safeDifficulty = Mathf.Max(0, difficulty);
             int wave = safeDifficulty / 5;
             int enemyClass = safeDifficulty % 5;
+            difficultyWave = wave;
             int pointCount = 12 + enemyClass * 8 + UnityEngine.Random.Range(-4, 5);
             int scanRadiusCandidate =
                 5 * enemyClass + UnityEngine.Random.Range(-8, 9);
@@ -316,6 +316,7 @@ namespace GlassShooter.Gameplay
             maximumInitialVulnerability = source.maximumInitialVulnerability;
             virtualPointCount = source.virtualPointCount;
             enemyCrackEnergyMultiplier = source.enemyCrackEnergyMultiplier;
+            difficultyWave = source.difficultyWave;
             isResourceRewardSuppressed = source.isResourceRewardSuppressed;
             maximumScanRadius = source.maximumScanRadius;
             outlineShape = source.outlineShape;
@@ -339,6 +340,7 @@ namespace GlassShooter.Gameplay
             initialCrackCount = Mathf.Max(0, initialCrackCount);
             virtualPointCount = Mathf.Max(0, virtualPointCount);
             enemyCrackEnergyMultiplier = Mathf.Clamp01(enemyCrackEnergyMultiplier);
+            difficultyWave = Mathf.Max(0, difficultyWave);
             maximumScanRadius = Mathf.Max(0f, maximumScanRadius);
             minimumBreakableArea = Mathf.Max(0f, minimumBreakableArea);
             minimumInitialVulnerability = Mathf.Clamp01(minimumInitialVulnerability);

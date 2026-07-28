@@ -31,9 +31,12 @@ namespace GlassShooter.Gameplay
         [Header("Geometry (Local Space)")]
         [SerializeField] private Vector2[] outline = Array.Empty<Vector2>();
         [SerializeField] private Vector2[] initCrackPoint = Array.Empty<Vector2>();
+        [SerializeField, Min(1)] private int minimumFragmentVirtualPointCount = 4;
+        [SerializeField, HideInInspector, Min(0)] private int fragmentGeneration;
 
         // Unityはジャグ配列をシリアライズしないため、クラックは実行時データとして保持します。
         private Vector2[][] cracks = Array.Empty<Vector2[]>();
+        private bool initialCrackPointsInitialized;
 
         [Header("Crack Growth")]
         [SerializeField] private int crackRandomSeed = 12345;
@@ -56,6 +59,7 @@ namespace GlassShooter.Gameplay
         private bool crackGraphInitialized;
         private bool isReleasedFromAnchor;
         private bool isSeparating;
+        private bool isDestroyPending;
         [SerializeField, HideInInspector] private bool overkillEvaluationConsumed;
 
         // 選択中オブジェクトのGizmo表示にだけ使用する直近着弾の診断情報。
@@ -196,7 +200,9 @@ namespace GlassShooter.Gameplay
             Vector2[] outlinePoints,
             Vector2[][] crackPaths = null,
             bool releasedFromAnchor = false,
-            Vector2[] inheritedBoundaryFallbackPoints = null)
+            Vector2[] inheritedBoundaryFallbackPoints = null,
+            Vector2[] inheritedInitialCrackPoints = null,
+            int generation = 0)
         {
             if (outlinePoints == null || outlinePoints.Length < 3)
             {
@@ -207,6 +213,17 @@ namespace GlassShooter.Gameplay
             ResolveDiagnosticsLogger();
             outline = CleanPolygon(outlinePoints);
             cracks = CloneCracks(crackPaths);
+            fragmentGeneration = Mathf.Max(0, generation);
+            if (inheritedInitialCrackPoints != null)
+            {
+                initCrackPoint = (Vector2[])inheritedInitialCrackPoints.Clone();
+                initialCrackPointsInitialized = true;
+            }
+            else
+            {
+                initCrackPoint ??= Array.Empty<Vector2>();
+                initialCrackPointsInitialized = initCrackPoint.Length > 0;
+            }
             boundaryFallbackPoints.Clear();
             if (inheritedBoundaryFallbackPoints != null)
             {

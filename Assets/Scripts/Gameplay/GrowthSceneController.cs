@@ -27,6 +27,7 @@ namespace GlassShooter.Gameplay
         private ResourceComponent resource;
         private GrowthStatusComponent growth;
         private TMP_Text resourceText;
+        private TMP_Text difficultyText;
 
         private void Start()
         {
@@ -80,10 +81,50 @@ namespace GlassShooter.Gameplay
             header.offsetMax = Vector2.zero;
 
             TMP_Text title = CreateText("Title", header, "成長", 38, FontStyles.Bold, TextAlignmentOptions.MidlineLeft);
-            SetRect(title.rectTransform, new Vector2(0f, 0f), new Vector2(0.5f, 1f), new Vector2(34f, 0f), new Vector2(-10f, 0f));
+            SetRect(title.rectTransform, new Vector2(0f, 0f), new Vector2(0.2f, 1f), new Vector2(34f, 0f), new Vector2(-10f, 0f));
 
             resourceText = CreateText("Resource", header, string.Empty, 25, FontStyles.Bold, TextAlignmentOptions.MidlineRight);
-            SetRect(resourceText.rectTransform, new Vector2(0.48f, 0f), new Vector2(0.76f, 1f), Vector2.zero, new Vector2(-18f, 0f));
+            SetRect(resourceText.rectTransform, new Vector2(0.58f, 0f), new Vector2(0.76f, 1f), Vector2.zero, new Vector2(-18f, 0f));
+
+            difficultyText = CreateText(
+                "InitialDifficulty",
+                header,
+                string.Empty,
+                23,
+                FontStyles.Bold,
+                TextAlignmentOptions.Center);
+            SetRect(
+                difficultyText.rectTransform,
+                new Vector2(0.2f, 0f),
+                new Vector2(0.42f, 1f),
+                Vector2.zero,
+                Vector2.zero);
+
+            Button decreaseDifficultyButton = CreateButton(
+                "DecreaseDifficulty",
+                header,
+                "－",
+                new Color(0.38f, 0.3f, 0.55f, 1f));
+            SetRect(
+                decreaseDifficultyButton.GetComponent<RectTransform>(),
+                new Vector2(0.43f, 0.18f),
+                new Vector2(0.49f, 0.82f),
+                Vector2.zero,
+                Vector2.zero);
+            decreaseDifficultyButton.onClick.AddListener(() => AdjustInitialDifficulty(-1));
+
+            Button increaseDifficultyButton = CreateButton(
+                "IncreaseDifficulty",
+                header,
+                "＋",
+                new Color(0.3f, 0.45f, 0.68f, 1f));
+            SetRect(
+                increaseDifficultyButton.GetComponent<RectTransform>(),
+                new Vector2(0.5f, 0.18f),
+                new Vector2(0.56f, 0.82f),
+                Vector2.zero,
+                Vector2.zero);
+            increaseDifficultyButton.onClick.AddListener(() => AdjustInitialDifficulty(1));
 
             Button runButton = CreateButton("RunButton", header, "ゲーム開始", new Color(0.15f, 0.62f, 0.42f, 1f));
             SetRect(runButton.GetComponent<RectTransform>(), new Vector2(0.77f, 0.18f), new Vector2(0.97f, 0.82f), Vector2.zero, Vector2.zero);
@@ -177,6 +218,7 @@ namespace GlassShooter.Gameplay
             }
 
             resourceText.text = $"資源  {resource.Resource:0.###}";
+            RefreshInitialDifficulty();
             foreach (GrowthStatDefinition definition in GrowthStatusComponent.DisplayDefinitions)
             {
                 RowView row = rows[definition.Id];
@@ -202,6 +244,39 @@ namespace GlassShooter.Gameplay
             RefreshAll();
         }
 
+        private void AdjustInitialDifficulty(int amount)
+        {
+            global::Gameplay.enemyspowner.initialDifficulty =
+                global::Gameplay.enemyspowner.NormalizeInitialDifficulty(
+                    global::Gameplay.enemyspowner.initialDifficulty);
+
+            if (amount < 0)
+            {
+                global::Gameplay.enemyspowner.initialDifficulty = Mathf.Max(
+                    1,
+                    global::Gameplay.enemyspowner.initialDifficulty - 5);
+            }
+            else if (amount > 0 &&
+                global::Gameplay.enemyspowner.initialDifficulty <= int.MaxValue - 5)
+            {
+                global::Gameplay.enemyspowner.initialDifficulty += 5;
+            }
+
+            RefreshInitialDifficulty();
+        }
+
+        private void RefreshInitialDifficulty()
+        {
+            if (difficultyText != null)
+            {
+                global::Gameplay.enemyspowner.initialDifficulty =
+                    global::Gameplay.enemyspowner.NormalizeInitialDifficulty(
+                        global::Gameplay.enemyspowner.initialDifficulty);
+                difficultyText.text =
+                    $"初期難易度  {(global::Gameplay.enemyspowner.initialDifficulty)}";
+            }
+        }
+
         private static void RunGame()
         {
             if (!Application.CanStreamedLevelBeLoaded(GameplaySceneName))
@@ -210,6 +285,18 @@ namespace GlassShooter.Gameplay
                 return;
             }
             SceneManager.LoadScene(GameplaySceneName);
+        }
+
+        /// <summary>現在のゲームプレイを終了し、成長画面へ遷移します。</summary>
+        public static void LoadGrowthScene()
+        {
+            if (!Application.CanStreamedLevelBeLoaded(SceneName))
+            {
+                Debug.LogError($"Build Settingsに '{SceneName}' が登録されていません。");
+                return;
+            }
+
+            SceneManager.LoadScene(SceneName);
         }
 
         private static void EnsureEventSystem()

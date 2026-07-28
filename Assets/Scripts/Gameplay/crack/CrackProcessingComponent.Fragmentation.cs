@@ -526,40 +526,17 @@ namespace GlassShooter.Gameplay
             float pooledEnergyBeforeReset = pooledImpactEnergy;
             float fragmentArea = Mathf.Abs(SignedArea(region));
             Vector2[][] retainedCracks = ClipCracksToPolygon(cracks, region);
-            var retainedInitialPoints = new List<Vector2>();
-            if (initCrackPoint != null)
-            {
-                for (int i = 0; i < initCrackPoint.Length; i++)
-                {
-                    if (IsPointInsideOrOnPolygon(initCrackPoint[i], region))
-                    {
-                        retainedInitialPoints.Add(initCrackPoint[i]);
-                    }
-                }
-            }
-
-            if (enemyDefeat != null && enemyDefeat.HasWeakPoint)
-            {
-                Vector2 weakPoint = enemyDefeat.WeakPointLocalPosition;
-                bool containsWeakPoint = false;
-                for (int i = 0; i < retainedInitialPoints.Count; i++)
-                {
-                    if ((retainedInitialPoints[i] - weakPoint).sqrMagnitude <=
-                        GeometryEpsilon * GeometryEpsilon)
-                    {
-                        containsWeakPoint = true;
-                        break;
-                    }
-                }
-                if (!containsWeakPoint)
-                {
-                    retainedInitialPoints.Add(weakPoint);
-                }
-            }
+            int retainedGeneration = fragmentGeneration + 1;
+            Vector2[] retainedInitialPoints = BuildInheritedInitialPoints(
+                region,
+                Vector2.zero,
+                retainedGeneration);
 
             outline = CleanPolygon(region);
             cracks = retainedCracks;
-            initCrackPoint = retainedInitialPoints.ToArray();
+            initCrackPoint = retainedInitialPoints;
+            initialCrackPointsInitialized = true;
+            fragmentGeneration = retainedGeneration;
             for (int i = boundaryFallbackPoints.Count - 1; i >= 0; i--)
             {
                 if (!IsPointInsideOrOnPolygon(boundaryFallbackPoints[i], region))
@@ -684,6 +661,11 @@ namespace GlassShooter.Gameplay
                     fragmentBoundaryFallbackPoints.Add(boundaryFallbackPoints[i] - centroid);
                 }
             }
+            int childGeneration = fragmentGeneration + 1;
+            Vector2[] fragmentInitialPoints = BuildInheritedInitialPoints(
+                region,
+                centroid,
+                childGeneration);
 
             if (fragmentCracks.Length > 0 || canBreakAgain)
             {
@@ -742,7 +724,9 @@ namespace GlassShooter.Gameplay
                     centeredRegion,
                     fragmentCracks,
                     releasedFromAnchor,
-                    fragmentBoundaryFallbackPoints.ToArray());
+                    fragmentBoundaryFallbackPoints.ToArray(),
+                    fragmentInitialPoints,
+                    childGeneration);
             }
 
             // CrackProcessingComponent.Awake の初期固定後に、解放済み破片のみ運動を引き継ぐ。
@@ -775,6 +759,97 @@ namespace GlassShooter.Gameplay
             target.angleCostWeight = angleCostWeight;
             target.surfaceParallelRejectionDistance = surfaceParallelRejectionDistance;
             target.terminalFragmentMaximumArea = terminalFragmentMaximumArea;
+            target.minimumFragmentVirtualPointCount = minimumFragmentVirtualPointCount;
+        }
+
+        private Vector2[] BuildInheritedInitialPoints(
+            Vector2[] region,
+            Vector2 localOffset,
+            int generation)
+        {
+            var inheritedPoints = new List<Vector2>();
+            if (initCrackPoint != null)
+            {
+                for (int i = 0; i < initCrackPoint.Length; i++)
+                {
+                    Vector2 point = initCrackPoint[i];
+                    if (IsPointInsideOrOnPolygon(point, region) &&
+                        !ContainsApproximately(inheritedPoints, point))
+                    {
+                        inheritedPoints.Add(point);
+                    }
+                }
+            }
+
+            if (enemyDefeat != null && enemyDefeat.HasWeakPoint)
+            {
+                Vector2 weakPoint = enemyDefeat.WeakPointLocalPosition;
+                if (IsPointInsideOrOnPolygon(weakPoint, region) &&
+                    !ContainsApproximately(inheritedPoints, weakPoint))
+                {
+                    inheritedPoints.Add(weakPoint);
+                }
+            }
+
+            inheritedPoints.Sort(CompareInitialPointPriority);
+            int pointLimit = GetVirtualPointLimit(generation);
+            if (enemyDefeat != null && enemyDefeat.HasWeakPoint)
+            {
+                pointLimit = Mathf.Max(1, pointLimit);
+            }
+            if (inheritedPoints.Count > pointLimit)
+            {
+                inheritedPoints.RemoveRange(
+                    pointLimit,
+                    inheritedPoints.Count - pointLimit);
+            }
+
+            for (int i = 0; i < inheritedPoints.Count; i++)
+            {
+                inheritedPoints[i] -= localOffset;
+            }
+            return inheritedPoints.ToArray();
+        }
+
+        private int CompareInitialPointPriority(Vector2 first, Vector2 second)
+        {
+            int priorityComparison = GetInitialPointPriority(second)
+                .CompareTo(GetInitialPointPriority(first));
+            if (priorityComparison != 0)
+            {
+                return priorityComparison;
+            }
+
+            int xComparison = first.x.CompareTo(second.x);
+            return xComparison != 0
+                ? xComparison
+                : first.y.CompareTo(second.y);
+        }
+
+        private float GetInitialPointPriority(Vector2 point)
+        {
+            if (IsEnemyWeakPoint(point))
+            {
+                return 2f;
+            }
+
+            CrackNode node = FindNodeAt(point);
+            return node != null ? node.vulnerability : 0f;
+        }
+
+        private static bool ContainsApproximately(
+            IReadOnlyList<Vector2> points,
+            Vector2 target)
+        {
+            float epsilonSquared = GeometryEpsilon * GeometryEpsilon;
+            for (int i = 0; i < points.Count; i++)
+            {
+                if ((points[i] - target).sqrMagnitude <= epsilonSquared)
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private static Vector2 CalculateCentroid(IReadOnlyList<Vector2> polygon)

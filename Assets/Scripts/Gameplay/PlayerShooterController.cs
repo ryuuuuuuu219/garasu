@@ -106,6 +106,12 @@ namespace GlassShooter.Gameplay
 
         private void Update()
         {
+            if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                GrowthSceneController.LoadGrowthScene();
+                return;
+            }
+
             if (Input.GetKey(KeyCode.Space) && Time.time >= nextFireTime)
             {
                 Fire();
@@ -237,7 +243,13 @@ namespace GlassShooter.Gameplay
         {
             combinedMovementOverrideVelocity = Vector2.zero;
 
-            Vector2 inputDirection = inputState.ArrowDirection;
+            bool moveUp = inputState.UpArrowHeld || Input.GetKey(KeyCode.W);
+            bool moveDown = inputState.DownArrowHeld || Input.GetKey(KeyCode.S);
+            bool moveLeft = inputState.LeftArrowHeld || Input.GetKey(KeyCode.A);
+            bool moveRight = inputState.RightArrowHeld || Input.GetKey(KeyCode.D);
+            Vector2 inputDirection = new Vector2(
+                (moveRight ? 1f : 0f) - (moveLeft ? 1f : 0f),
+                (moveUp ? 1f : 0f) - (moveDown ? 1f : 0f));
             if (inputDirection.sqrMagnitude > 1f)
             {
                 inputDirection.Normalize();

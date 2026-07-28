@@ -24,14 +24,24 @@ namespace GlassShooter.Gameplay
             crackRandom = new System.Random(crackRandomSeed);
 
             var generatedVulnerabilities = new Dictionary<Vector2, float>();
-            if ((initCrackPoint == null || initCrackPoint.Length == 0) &&
+            if (!initialCrackPointsInitialized &&
+                (initCrackPoint == null || initCrackPoint.Length == 0) &&
                 glassStatus != null && outline.Length >= 3)
             {
                 InitialCrackPointData[] generated = glassStatus.GenerateInitialCrackPointData(
                     outline,
                     crackRandomSeed);
+                int pointLimit = Mathf.Min(
+                    generated.Length,
+                    GetVirtualPointLimit(fragmentGeneration));
+                if (pointLimit < generated.Length)
+                {
+                    Array.Sort(
+                        generated,
+                        (a, b) => b.vulnerability.CompareTo(a.vulnerability));
+                }
                 var validPositions = new List<Vector2>(generated.Length);
-                for (int i = 0; i < generated.Length; i++)
+                for (int i = 0; i < generated.Length && validPositions.Count < pointLimit; i++)
                 {
                     if (!IsPointInsideOrOnOutline(generated[i].localPosition))
                     {
@@ -43,6 +53,7 @@ namespace GlassShooter.Gameplay
                 }
                 initCrackPoint = validPositions.ToArray();
             }
+            initialCrackPointsInitialized = true;
 
             float minimumVulnerability = glassStatus != null
                 ? glassStatus.MinimumInitialVulnerability
@@ -108,6 +119,32 @@ namespace GlassShooter.Gameplay
             DiagnoseNodeVulnerabilityState("GraphInitialized");
             DiagnoseWeakPointState("GraphInitialized");
             EvaluateWeakPointDefeat();
+        }
+
+        private int GetVirtualPointLimit(int generation)
+        {
+            int configuredCount = glassStatus != null
+                ? glassStatus.VirtualPointCount > 0
+                    ? glassStatus.VirtualPointCount
+                    : glassStatus.InitialCrackCount
+                : initCrackPoint?.Length ?? 0;
+            if (configuredCount <= 0)
+            {
+                return 0;
+            }
+
+            int minimumCount = Mathf.Min(
+                configuredCount,
+                Mathf.Max(1, minimumFragmentVirtualPointCount));
+            if (generation <= 0)
+            {
+                return configuredCount;
+            }
+
+            float divisor = Mathf.Pow(2f, Mathf.Min(generation, 30));
+            return Mathf.Max(
+                minimumCount,
+                Mathf.CeilToInt(configuredCount / divisor));
         }
 
         private void GetOutlineSize(out float width, out float height)

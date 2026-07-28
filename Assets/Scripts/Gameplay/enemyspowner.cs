@@ -19,7 +19,14 @@ namespace Gameplay
         };
 
         public GlassStatus glassStatus;
+        public static int initialDifficulty = 1;
         [Min(0)] public int difficulty = 1;
+
+        public static int NormalizeInitialDifficulty(int value)
+        {
+            int safeValue = Mathf.Max(1, value);
+            return 1 + (safeValue - 1) / 5 * 5;
+        }
 
         [Header("出現時の残骸排除")]
         [SerializeField, Min(0.01f)] private float repulsionRadius = 12f;
@@ -178,6 +185,9 @@ namespace Gameplay
 
         private void Awake()
         {
+            initialDifficulty = NormalizeInitialDifficulty(initialDifficulty);
+            difficulty = initialDifficulty;
+
             manager = GetComponent<BossAppearanceManager>();
             if (manager == null)
             {
