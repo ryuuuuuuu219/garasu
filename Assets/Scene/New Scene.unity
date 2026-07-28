@@ -571,6 +571,7 @@ MonoBehaviour:
   fragmentAttackMultiplier: 1
   fragmentFallSpeedMultiplier: 1
   resourceRewardArea: 0
+  difficultyWave: 0
   minimumBreakableArea: 0.04
 --- !u!114 &848862847
 MonoBehaviour:
@@ -588,6 +589,7 @@ MonoBehaviour:
   scaleRoot: {fileID: 0}
   baseGravity: {x: 0, y: -9.81}
   gravityMultiplier: 0.06
+  crackDiagnosticsEnabled: 0
 --- !u!1 &1132579635
 GameObject:
   m_ObjectHideFlags: 0
@@ -660,7 +662,7 @@ MonoBehaviour:
   repulsionRadius: 12
   repulsionAcceleration: 30
   repulsionDuration: 1.5
-  manualSpawnDiffculty: 5
+  manualSpawnDiffculty: 10
   manualTrigger: 0
 --- !u!4 &1132579638
 Transform:

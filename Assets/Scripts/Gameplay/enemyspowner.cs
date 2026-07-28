@@ -109,7 +109,7 @@ namespace Gameplay
                     };
                 case "Boss_A":
                 case "Boss_A_armor":
-                    return CreateMultiLayerPositions(12, 3f, 0f, 12, 1f, 0f);
+                    return CreateLowerHalfRingPositions(12, 3f, 12, 1f);
                 case "Boss_A_core":
                 case "battery_A":
                     return CreateRegularPolygonPositions(6, 1f, 0f);
@@ -137,36 +137,50 @@ namespace Gameplay
             return positions;
         }
 
-        private Vector2[] CreateMultiLayerPositions(
+        private Vector2[] CreateLowerHalfRingPositions(
             int outerVertexCount,
             float outerRadius,
-            float outerPhaseDegrees,
             int innerVertexCount,
-            float innerRadius,
-            float innerPhaseDegrees)
+            float innerRadius)
         {
-            Vector2[] positions = new Vector2[outerVertexCount + innerVertexCount + 4];
-            positions[0] = new Vector2(0f, outerRadius);
-            positions[1] = new Vector2(0f, innerRadius);
+            int outerSegmentCount = Mathf.Max(1, outerVertexCount / 2);
+            int innerSegmentCount = Mathf.Max(1, innerVertexCount / 2);
+            var positions = new List<Vector2>(
+                outerSegmentCount + innerSegmentCount + 2);
 
-            for (int i = 2; i < 2 + innerVertexCount; i++)
+            // X軸右端から外周の下側を通って左端へ進む。
+            for (int vertexIndex = 0;
+                vertexIndex <= outerSegmentCount;
+                vertexIndex++)
             {
-                int vertexIndex = i - 2;
-                float angleDegrees = 360f / innerVertexCount * vertexIndex + innerPhaseDegrees;
-                positions[i] = GetPositionOnCircle(innerRadius, angleDegrees);
+                float angleDegrees =
+                    -90f - 180f * vertexIndex / outerSegmentCount;
+                positions.Add(vertexIndex switch
+                {
+                    0 => new Vector2(outerRadius, 0f),
+                    _ when vertexIndex == outerSegmentCount =>
+                        new Vector2(-outerRadius, 0f),
+                    _ => GetPositionOnCircle(outerRadius, angleDegrees)
+                });
             }
 
-            positions[2 + innerVertexCount] = new Vector2(0f, innerRadius);
-            positions[2 + innerVertexCount + 1] = new Vector2(0f, outerRadius);
-
-            for (int i = 4 + innerVertexCount; i < positions.Length; i++)
+            // 内周は左端から下側を逆向きに戻り、単純ポリゴンの半環にする。
+            for (int vertexIndex = 0;
+                vertexIndex <= innerSegmentCount;
+                vertexIndex++)
             {
-                int vertexIndex = i - 4 - innerVertexCount;
-                float angleDegrees = -(360f / outerVertexCount * vertexIndex + outerPhaseDegrees);
-                positions[i] = GetPositionOnCircle(outerRadius, angleDegrees);
+                float angleDegrees =
+                    90f + 180f * vertexIndex / innerSegmentCount;
+                positions.Add(vertexIndex switch
+                {
+                    0 => new Vector2(-innerRadius, 0f),
+                    _ when vertexIndex == innerSegmentCount =>
+                        new Vector2(innerRadius, 0f),
+                    _ => GetPositionOnCircle(innerRadius, angleDegrees)
+                });
             }
 
-            return positions;
+            return positions.ToArray();
         }
 
         private Vector2 GetPositionOnCircle(float radius, float angleDegrees)
