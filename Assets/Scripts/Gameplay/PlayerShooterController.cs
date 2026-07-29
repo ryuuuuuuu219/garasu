@@ -13,8 +13,8 @@ namespace GlassShooter.Gameplay
     public sealed class PlayerShooterController : MonoBehaviour
     {
         [Header("Movement")]
+        [Tooltip("入力時の推力と最高速度の両方に使用します。")]
         [SerializeField, Min(0f)] private float moveSpeed = 7f;
-        [SerializeField, Min(0f)] private float collisionVelocityRecovery = 1f;
 
         [Header("Shooting")]
         [SerializeField] private Projectile projectilePrefab = null;
@@ -35,7 +35,6 @@ namespace GlassShooter.Gameplay
         private KeyboardInputState inputState;
         private Rigidbody2D playerRigidbody;
         private Vector2 combinedMovementOverrideVelocity;
-        private Vector2 lastCommandedVelocity;
         private float nextFireTime;
         private LineRenderer lr;
         private PolygonCollider2D hitbox;
@@ -255,21 +254,53 @@ namespace GlassShooter.Gameplay
                 inputDirection.Normalize();
             }
 
-            Vector2 inputVelocity = inputDirection * moveSpeed;
+            ApplyThrustAndResistance(inputDirection);
 
-            // 速度を直接上書きすると、直前の物理ステップで受けた衝突反動が消える。
-            // 前回指示した速度との差を物理由来の速度として残し、入力操作とは別に減衰させる。
-            Vector2 collisionVelocity =
-                playerRigidbody.linearVelocity - lastCommandedVelocity;
-            collisionVelocity = Vector2.MoveTowards(
-                collisionVelocity,
-                Vector2.zero,
-                collisionVelocityRecovery * Time.fixedDeltaTime);
+            Vector2 velocity = playerRigidbody.linearVelocity;
+            ClampMovementToBounds(ref velocity);
+            playerRigidbody.linearVelocity = velocity;
+        }
 
-            Vector2 nextVelocity = inputVelocity + collisionVelocity;
-            ClampMovementToBounds(ref nextVelocity);
-            lastCommandedVelocity = nextVelocity;
-            playerRigidbody.linearVelocity = nextVelocity;
+        private void ApplyThrustAndResistance(Vector2 inputDirection)
+        {
+            if (moveSpeed <= 0f)
+            {
+                playerRigidbody.linearVelocity = Vector2.zero;
+                return;
+            }
+
+            Vector2 velocity = playerRigidbody.linearVelocity;
+            if (velocity.magnitude > moveSpeed)
+            {
+                velocity = velocity.normalized * moveSpeed;
+                playerRigidbody.linearVelocity = velocity;
+            }
+
+            float thrust = moveSpeed;
+            float maximumSpeed = moveSpeed;
+
+            // 抵抗は速度に比例する。係数を「推力 / 最高速度」とすることで、
+            // 外乱がなければ最高速度で推力と抵抗がちょうどつり合う。
+            float resistanceCoefficient = thrust / maximumSpeed;
+            Vector2 netForce =
+                inputDirection * thrust -
+                velocity * resistanceCoefficient;
+
+            // この物理ステップの推力と抵抗だけで最高速度を超えないようにする。
+            Vector2 predictedVelocity =
+                velocity +
+                netForce / playerRigidbody.mass * Time.fixedDeltaTime;
+            if (predictedVelocity.magnitude > maximumSpeed)
+            {
+                predictedVelocity =
+                    predictedVelocity.normalized * maximumSpeed;
+                netForce =
+                    (predictedVelocity - velocity) *
+                    playerRigidbody.mass /
+                    Time.fixedDeltaTime;
+            }
+
+            playerRigidbody.AddForce(netForce, ForceMode2D.Force);
         }
 
         /// <summary>
@@ -402,6 +433,13 @@ namespace GlassShooter.Gameplay
                 ? existingStatus
                 : projectile.gameObject.AddComponent<BulletStatus>();
             copy.CopyFrom(bulletStatus);
+
+            // 発射時点のプレイヤー速度を弾の初速へ引き継ぐ。
+            Vector2 inheritedVelocity = playerRigidbody != null
+                ? playerRigidbody.linearVelocity
+                : Vector2.zero;
+            copy.SetCurrentVelocity(
+                copy.CurrentVelocity + inheritedVelocity);
         }
     }
 

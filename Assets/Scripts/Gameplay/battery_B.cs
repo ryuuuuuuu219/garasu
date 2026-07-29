@@ -21,6 +21,9 @@ namespace Gameplay
         private float fireInterval = 8f;
 
         [SerializeField, Min(0f)]
+        private float initialFireDelay = 1f;
+
+        [SerializeField, Min(0f)]
         private float spawnDistance = 2f;
 
         [SerializeField, Min(0.01f)]
@@ -43,16 +46,12 @@ namespace Gameplay
         {
             spawner = owner;
             ResolvePlayer();
-            if (spawner != null && player != null)
-            {
-                FireVolley();
-            }
-            nextFireTime = Time.time + fireInterval;
+            nextFireTime = Time.time + initialFireDelay;
         }
 
         private void OnEnable()
         {
-            nextFireTime = Time.time + fireInterval;
+            nextFireTime = Time.time + initialFireDelay;
         }
 
         private void Update()
@@ -62,7 +61,6 @@ namespace Gameplay
                 return;
             }
 
-            nextFireTime = Time.time + fireInterval;
             if (spawner == null)
             {
                 spawner = GetComponentInParent<enemyspowner>();
@@ -77,6 +75,7 @@ namespace Gameplay
             }
 
             FireVolley();
+            nextFireTime = Time.time + fireInterval;
         }
 
         private void FireVolley()
@@ -155,6 +154,7 @@ namespace Gameplay
         private void OnValidate()
         {
             fireInterval = Mathf.Max(0.01f, fireInterval);
+            initialFireDelay = Mathf.Max(0f, initialFireDelay);
             spawnDistance = Mathf.Max(0f, spawnDistance);
             projectileSpeed = Mathf.Max(0.01f, projectileSpeed);
             trailHalfWidth = Mathf.Max(0.01f, trailHalfWidth);

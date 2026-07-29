@@ -128,7 +128,7 @@ namespace Gameplay
                 .AppendLine($"最大ケース破片数（面積による理論上限）: {maximumFragments}")
                 .AppendLine()
                 .AppendLine("【成長予定・調整対象】")
-                .AppendLine($"プレイヤー移動速度: {(player != null ? player.MoveSpeed : 0f):0.###}")
+                .AppendLine($"プレイヤー推力・最高速度: {(player != null ? player.MoveSpeed : 0f):0.###}")
                 .AppendLine($"移動範囲: {(player != null ? player.MoveLimitMin : Vector2.zero)} ～ {(player != null ? player.MoveLimitMax : Vector2.zero)}")
                 .AppendLine($"実発射間隔: {(player != null ? player.FireInterval : 0f):0.###}")
                 .AppendLine($"発射レート: {sourceBullet.FireRate:0.###}")

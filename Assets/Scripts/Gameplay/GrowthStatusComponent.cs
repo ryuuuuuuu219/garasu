@@ -84,7 +84,7 @@ namespace GlassShooter.Gameplay
     {
         public static readonly GrowthStatDefinition[] Definitions =
         {
-            new(GrowthStatId.PlayerMoveSpeed, "プレイヤー・ガラス強化", "移動速度強化", "プレイヤーの移動速度を増加させ、破片の回避や位置調整をしやすくします。", 4f, 0.5f, int.MaxValue, 500),
+            new(GrowthStatId.PlayerMoveSpeed, "プレイヤー・ガラス強化", "推力・最高速度強化", "プレイヤーの推力と最高速度を同時に増加させ、破片の回避や位置調整をしやすくします。", 4f, 0.5f, int.MaxValue, 500),
             new(GrowthStatId.PlayerFireInterval, "プレイヤー", "発射間隔", "弾を発射してから次の弾を発射できるまでの秒数です。", 0.16f, -0.01f, 10, 3),
             new(GrowthStatId.BulletMass, "弾幕・破砕弾強化", "質量強化", "破砕弾の質量を増加させます。運動エネルギー E=1/2・m・v² のmが増え、クラック進行能力と初回オーバーキル能力が上昇します。", 0.1f, 0f, int.MaxValue, 2),
             new(GrowthStatId.BulletSpeed, "弾幕・破砕弾強化", "初速強化", "破砕弾の飛行速度を増加させます。着弾までの時間が短くなり、速度の二乗に比例して運動エネルギーが増加します。", 4.5f, 0f, int.MaxValue, 1),
@@ -166,6 +166,27 @@ namespace GlassShooter.Gameplay
 
         /// <summary>指定した成長項目がゲームへ与える効果の説明文を返します。</summary>
         public static string GetDescription(GrowthStatId id) => GetDefinition(id).Description;
+
+        /// <summary>成長画面で能力値の後ろに表示する単位を返します。</summary>
+        public static string GetValueUnit(GrowthStatId id)
+        {
+            return id switch
+            {
+                GrowthStatId.BulletMass => "kg",
+                GrowthStatId.BulletSpeed => "m/s",
+                GrowthStatId.BulletFireRate => "発/s",
+                GrowthStatId.BulletCrackEfficiency => "-",
+                GrowthStatId.BulletContactSize => "倍",
+                GrowthStatId.PlayerHitboxScale => "倍",
+                GrowthStatId.PlayerMoveSpeed => "N, m/s",
+                GrowthStatId.PlayerMass => "kg",
+                GrowthStatId.SmallLightUnlock => "-",
+                GrowthStatId.SmallLightRange => "m",
+                GrowthStatId.SmallLightAngle => "deg",
+                GrowthStatId.SmallLightShrink => "倍/s",
+                _ => "-"
+            };
+        }
 
         /// <summary>Lを現在レベルとした、指定項目の現在能力値の計算式を返します。</summary>
         public static string GetValueFormula(GrowthStatId id)

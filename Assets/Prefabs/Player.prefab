@@ -284,7 +284,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GlassShooter.Gameplay.PlayerShooterController
   moveSpeed: 7
-  collisionVelocityRecovery: 1
   projectilePrefab: {fileID: 2392873469250993363, guid: dcb01be4b46807948b658a015375f08d, type: 3}
   firePoint: {fileID: 6224997703100826227}
   fireInterval: 0.16

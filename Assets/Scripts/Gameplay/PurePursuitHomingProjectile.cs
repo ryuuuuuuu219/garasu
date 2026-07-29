@@ -12,10 +12,10 @@ namespace Gameplay
         private const float DirectionEpsilon = 0.000001f;
 
         [SerializeField, Min(0.01f)]
-        private float lifetime = 8f;
+        private float lifetime = 5f;
 
         [SerializeField, Min(0f)]
-        private float turnRateDecay = 5f;
+        private float turnRateDecay = 40f;
 
         private Rigidbody2D projectileRigidbody;
         private Transform target;

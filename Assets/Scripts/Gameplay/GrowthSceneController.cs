@@ -223,7 +223,9 @@ namespace GlassShooter.Gameplay
             {
                 RowView row = rows[definition.Id];
                 int level = growth.GetLevel(definition.Id);
-                row.value.text = $"{growth.FormatValue(definition.Id)}   レベル {level}";
+                string unit = GrowthStatusComponent.GetValueUnit(definition.Id);
+                row.value.text =
+                    $"{growth.FormatValue(definition.Id)} [{unit}]   レベル {level}";
                 bool canUpgrade = growth.CanUpgrade(definition.Id);
                 row.button.interactable = canUpgrade && resource.Resource >= growth.GetUpgradeCost(definition.Id);
                 bool requiresSmallLightUnlock =

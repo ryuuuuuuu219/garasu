@@ -33,6 +33,9 @@ namespace GlassShooter.Gameplay
         [SerializeField]
         private bool createFallingGlassTriangles;
 
+        [SerializeField, Min(0f)]
+        private float triangleLifetime = 2.5f;
+
         [SerializeField, Range(0f, 1f)]
         private float fallingGlassCrackEnergyMultiplier = 2f;
 
@@ -261,6 +264,7 @@ namespace GlassShooter.Gameplay
                 worldCenter,
                 Quaternion.identity);
             triangleTransform.localScale = Vector3.one;
+            Destroy(triangleObject, triangleLifetime);
 
             Vector2 localA = triangleTransform.InverseTransformPoint(worldA);
             Vector2 localB = triangleTransform.InverseTransformPoint(worldB);
@@ -398,11 +402,10 @@ namespace GlassShooter.Gameplay
 
         private void OnDestroy()
         {
-            if (ownsColliderRoot &&
-                colliderRoot != null &&
-                colliderRoot.childCount == 0)
+            if (ownsColliderRoot && colliderRoot != null)
             {
-                Destroy(colliderRoot.gameObject);
+                // 最後に生成した三角形の寿命を妨げず、空ルートも残さない。
+                Destroy(colliderRoot.gameObject, triangleLifetime);
             }
         }
 
@@ -411,6 +414,7 @@ namespace GlassShooter.Gameplay
             halfWidth = Mathf.Max(0.01f, halfWidth);
             sampleInterval = Mathf.Max(0.001f, sampleInterval);
             minimumDoubleArea = Mathf.Max(0f, minimumDoubleArea);
+            triangleLifetime = Mathf.Max(0f, triangleLifetime);
             fallingGlassCrackEnergyMultiplier =
                 Mathf.Clamp01(fallingGlassCrackEnergyMultiplier);
             debugPointRadius = Mathf.Max(0.001f, debugPointRadius);
