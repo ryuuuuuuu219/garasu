@@ -500,6 +500,7 @@ GameObject:
   m_Component:
   - component: {fileID: 848862845}
   - component: {fileID: 848862844}
+  - component: {fileID: 848862848}
   - component: {fileID: 848862846}
   - component: {fileID: 848862847}
   m_Layer: 0
@@ -590,6 +591,22 @@ MonoBehaviour:
   baseGravity: {x: 0, y: -9.81}
   gravityMultiplier: 0.06
   crackDiagnosticsEnabled: 0
+--- !u!114 &848862848
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 848862843}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3a1e5f626b5d47a0b1b1c69d21e0f7e3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GlassShooter.Gameplay.SmallLightComponent
+  unlocked: 0
+  range: 2
+  angleDegrees: 2.5
+  linearMultiplierPerSecond: 1
 --- !u!1 &1132579635
 GameObject:
   m_ObjectHideFlags: 0

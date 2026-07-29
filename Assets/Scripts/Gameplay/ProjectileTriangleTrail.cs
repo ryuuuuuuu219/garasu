@@ -33,6 +33,9 @@ namespace GlassShooter.Gameplay
         [SerializeField]
         private bool createFallingGlassTriangles;
 
+        [SerializeField, Range(0f, 1f)]
+        private float fallingGlassCrackEnergyMultiplier = 2f;
+
         [Header("Debug")]
         [SerializeField]
         private bool drawDebugGizmos = true;
@@ -288,6 +291,10 @@ namespace GlassShooter.Gameplay
             {
                 status.CopyFrom(sourceStatus);
             }
+            status.ApplyEnemyDefenseStatus(
+                fallingGlassCrackEnergyMultiplier,
+                status.VirtualPointCount,
+                status.MaximumScanRadius);
             status.SetResourceRewardSuppressed(true);
             status.SetResourceRewardArea(0f);
 
@@ -311,6 +318,22 @@ namespace GlassShooter.Gameplay
             GlassSurfaceLineRenderer outline =
                 outlineObject.AddComponent<GlassSurfaceLineRenderer>();
             outline.SetOutline(localPoints);
+
+            GameObject crackObject = new GameObject("CrackLineRenderer");
+            crackObject.layer = triangleObject.layer;
+            crackObject.transform.SetParent(triangleObject.transform, false);
+            LineRenderer crackLine = crackObject.AddComponent<LineRenderer>();
+            crackLine.sharedMaterial = line.sharedMaterial;
+            crackObject.AddComponent<CrackLineRenderer>();
+
+            // Awakeで既存の描画・Collider・Status・Rigidbodyを解決できるよう、
+            // 破砕コンポーネントは必要要素をすべて構築した後に追加する。
+            CrackProcessingComponent processing =
+                triangleObject.AddComponent<CrackProcessingComponent>();
+            processing.Initialize(
+                localPoints,
+                null,
+                releasedFromAnchor: true);
         }
 
         private Transform GetOrCreateColliderRoot()
@@ -388,6 +411,8 @@ namespace GlassShooter.Gameplay
             halfWidth = Mathf.Max(0.01f, halfWidth);
             sampleInterval = Mathf.Max(0.001f, sampleInterval);
             minimumDoubleArea = Mathf.Max(0f, minimumDoubleArea);
+            fallingGlassCrackEnergyMultiplier =
+                Mathf.Clamp01(fallingGlassCrackEnergyMultiplier);
             debugPointRadius = Mathf.Max(0.001f, debugPointRadius);
         }
 
