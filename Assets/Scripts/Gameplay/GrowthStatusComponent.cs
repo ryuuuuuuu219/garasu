@@ -39,6 +39,24 @@ namespace GlassShooter.Gameplay
         SmallLightRange,
         SmallLightAngle,
         SmallLightShrink,
+        HammerUnlock,
+        HammerMassRatio,
+        HammerReach,
+        HammerDrag,
+        ShotgunUnlock,
+        ShotgunPelletMassRatio,
+        ShotgunSpeed,
+        ShotgunFireRate,
+        ShotgunPelletCount,
+        BounceUnlock,
+        BounceMassRatio,
+        BounceSpeed,
+        BounceCount,
+        SearchLightMultiplier,
+        SineUnlock,
+        SineMassRatio,
+        SineSpeed,
+        SineFireRate,
         Count
     }
 
@@ -116,7 +134,25 @@ namespace GlassShooter.Gameplay
             new(GrowthStatId.SmallLightUnlock, "特殊効果・破片対策", "スモールライト開放", "プレイヤー前方へ扇形の光を常時照射し、範囲へ接触した固定されていないガラスを継続的に縮小します。", 0f, 1f, 1, 50000, true),
             new(GrowthStatId.SmallLightRange, "特殊効果・破片対策", "スモールライト射程", "スモールライトの扇形が届く距離を増加させます。", 2f, 0f, 1000, 1000),
             new(GrowthStatId.SmallLightAngle, "特殊効果・破片対策", "スモールライト角度", "スモールライトの扇形の全角を増加させます。", 2.5f, 0f, 1000, 1000),
-            new(GrowthStatId.SmallLightShrink, "特殊効果・破片対策", "スモールライト縮小率", "照射中のガラスへ1秒ごとに適用する線形寸法倍率を低下させます。面積倍率は線形寸法倍率の二乗です。", 1f, 0f, 1000, 15000)
+            new(GrowthStatId.SmallLightShrink, "特殊効果・破片対策", "スモールライト縮小率", "照射中のガラスへ1秒ごとに適用する線形寸法倍率を低下させます。面積倍率は線形寸法倍率の二乗です。", 1f, 0f, 1000, 15000),
+            new(GrowthStatId.HammerUnlock, "追加武器・ハンマー", "ハンマー開放", "プレイヤー移動で振る上向き五角形のハンマーを1個生成します。", 0f, 1f, 1, 35000, true),
+            new(GrowthStatId.HammerMassRatio, "追加武器・ハンマー", "ヘッド質量倍率", "通常弾質量に対するハンマーヘッドの質量倍率です。", 3f, 0f, int.MaxValue, 1500),
+            new(GrowthStatId.HammerReach, "追加武器・ハンマー", "ヘッド射程", "五角形ヘッドの外接円直径を拡大します。", 1f, 0f, int.MaxValue, 2000),
+            new(GrowthStatId.HammerDrag, "追加武器・ハンマー", "接線速度抵抗", "ハンマーの接線速度に掛かる抵抗を低下させます。", 0.8f, 0f, int.MaxValue, 1000),
+            new(GrowthStatId.ShotgunUnlock, "追加武器・散弾銃", "散弾銃開放", "通常弾と並行して扇状の散弾を発射します。", 0f, 1f, 1, 25000, true),
+            new(GrowthStatId.ShotgunPelletMassRatio, "追加武器・散弾銃", "1粒質量倍率", "通常弾質量に対する散弾1粒の質量倍率です。", 0.3f, 0f, int.MaxValue, 2000),
+            new(GrowthStatId.ShotgunSpeed, "追加武器・散弾銃", "散弾初速", "散弾の初速を増加させます。", 3f, 0f, int.MaxValue, 2000),
+            new(GrowthStatId.ShotgunFireRate, "追加武器・散弾銃", "散弾発射レート", "散弾の1秒あたりの発射回数を増加させます。", 0.2f, 0f, int.MaxValue, 2000),
+            new(GrowthStatId.ShotgunPelletCount, "追加武器・散弾銃", "同時発射数", "1回に発射する散弾を最大8粒まで増やします。", 3f, 1f, 5, 5000, true),
+            new(GrowthStatId.BounceUnlock, "追加武器・DVD反射弾", "DVD反射弾開放", "画面端とガラスで反射する永続弾を生成します。", 0f, 1f, 1, 80000, true),
+            new(GrowthStatId.BounceMassRatio, "追加武器・DVD反射弾", "反射弾質量倍率", "通常弾質量に対する反射弾の質量倍率です。", 0.8f, 0f, int.MaxValue, 1000),
+            new(GrowthStatId.BounceSpeed, "追加武器・DVD反射弾", "反射弾速度", "反射弾の移動速度を増加させます。", 3.5f, 0f, int.MaxValue, 1000),
+            new(GrowthStatId.BounceCount, "追加武器・DVD反射弾", "反射弾個数", "同時に存在する反射弾を最大3個まで増やします。", 1f, 1f, 2, 40000, true),
+            new(GrowthStatId.SearchLightMultiplier, "特殊効果・破片対策", "サーチライト倍率", "スモールライト範囲内へ着弾した全武器の投入エネルギーを増幅します。", 1f, 0f, 8, 3000),
+            new(GrowthStatId.SineUnlock, "追加武器・へにょり弾", "へにょり弾開放", "振幅と周波数が弾ごとに変わる正弦波軌道弾を発射します。", 0f, 1f, 1, 40000, true),
+            new(GrowthStatId.SineMassRatio, "追加武器・へにょり弾", "へにょり弾質量倍率", "通常弾質量に対するへにょり弾の質量倍率です。", 0.75f, 0f, int.MaxValue, 1000),
+            new(GrowthStatId.SineSpeed, "追加武器・へにょり弾", "へにょり弾前進速度", "へにょり弾の基準前進速度を増加させます。", 4.5f, 0f, int.MaxValue, 1000),
+            new(GrowthStatId.SineFireRate, "追加武器・へにょり弾", "へにょり弾発射レート", "へにょり弾の1秒あたりの発射回数を増加させます。", 1f, 0f, int.MaxValue, 1000)
         };
 
         /// <summary>強化画面に表示するカテゴリと項目の順序です。</summary>
@@ -133,7 +169,25 @@ namespace GlassShooter.Gameplay
             Definitions[(int)GrowthStatId.SmallLightUnlock],
             Definitions[(int)GrowthStatId.SmallLightRange],
             Definitions[(int)GrowthStatId.SmallLightAngle],
-            Definitions[(int)GrowthStatId.SmallLightShrink]
+            Definitions[(int)GrowthStatId.SmallLightShrink],
+            Definitions[(int)GrowthStatId.SearchLightMultiplier],
+            Definitions[(int)GrowthStatId.HammerUnlock],
+            Definitions[(int)GrowthStatId.HammerMassRatio],
+            Definitions[(int)GrowthStatId.HammerReach],
+            Definitions[(int)GrowthStatId.HammerDrag],
+            Definitions[(int)GrowthStatId.ShotgunUnlock],
+            Definitions[(int)GrowthStatId.ShotgunPelletMassRatio],
+            Definitions[(int)GrowthStatId.ShotgunSpeed],
+            Definitions[(int)GrowthStatId.ShotgunFireRate],
+            Definitions[(int)GrowthStatId.ShotgunPelletCount],
+            Definitions[(int)GrowthStatId.SineUnlock],
+            Definitions[(int)GrowthStatId.SineMassRatio],
+            Definitions[(int)GrowthStatId.SineSpeed],
+            Definitions[(int)GrowthStatId.SineFireRate],
+            Definitions[(int)GrowthStatId.BounceUnlock],
+            Definitions[(int)GrowthStatId.BounceMassRatio],
+            Definitions[(int)GrowthStatId.BounceSpeed],
+            Definitions[(int)GrowthStatId.BounceCount]
         };
 
         [SerializeField] private int[] upgradeLevels = new int[(int)GrowthStatId.Count];
@@ -184,6 +238,17 @@ namespace GlassShooter.Gameplay
                 GrowthStatId.SmallLightRange => "m",
                 GrowthStatId.SmallLightAngle => "deg",
                 GrowthStatId.SmallLightShrink => "倍/s",
+                GrowthStatId.HammerUnlock or GrowthStatId.ShotgunUnlock or
+                    GrowthStatId.BounceUnlock or GrowthStatId.SineUnlock => "-",
+                GrowthStatId.HammerMassRatio or GrowthStatId.ShotgunPelletMassRatio or
+                    GrowthStatId.BounceMassRatio or GrowthStatId.SineMassRatio => "倍",
+                GrowthStatId.HammerReach => "m",
+                GrowthStatId.HammerDrag => "1/s",
+                GrowthStatId.ShotgunSpeed or GrowthStatId.BounceSpeed or
+                    GrowthStatId.SineSpeed => "m/s",
+                GrowthStatId.ShotgunFireRate or GrowthStatId.SineFireRate => "発/s",
+                GrowthStatId.ShotgunPelletCount or GrowthStatId.BounceCount => "個",
+                GrowthStatId.SearchLightMultiplier => "倍",
                 _ => "-"
             };
         }
@@ -205,6 +270,24 @@ namespace GlassShooter.Gameplay
                 GrowthStatId.SmallLightRange => "2 + 0.5 × L^(2/3)",
                 GrowthStatId.SmallLightAngle => "2.5 + 0.1 × L^(2/3) [deg]",
                 GrowthStatId.SmallLightShrink => "0.995^(L/3) [線形寸法倍率/秒]",
+                GrowthStatId.HammerUnlock => "L=0: 未開放、L=1: 開放",
+                GrowthStatId.HammerMassRatio => "3 + L",
+                GrowthStatId.HammerReach => "1 + 0.2 × L",
+                GrowthStatId.HammerDrag => "0.8 / 1.05^L",
+                GrowthStatId.ShotgunUnlock => "L=0: 未開放、L=1: 開放",
+                GrowthStatId.ShotgunPelletMassRatio => "0.3 + 0.05 × L",
+                GrowthStatId.ShotgunSpeed => "3 + 0.1 × L",
+                GrowthStatId.ShotgunFireRate => "0.2 × 1.04^L",
+                GrowthStatId.ShotgunPelletCount => "3 + L（最大8）",
+                GrowthStatId.BounceUnlock => "L=0: 未開放、L=1: 開放",
+                GrowthStatId.BounceMassRatio => "0.8 + 0.05 × L",
+                GrowthStatId.BounceSpeed => "3.5 + √(0.5 × L)",
+                GrowthStatId.BounceCount => "1 + L（最大3）",
+                GrowthStatId.SearchLightMultiplier => "1.1^L",
+                GrowthStatId.SineUnlock => "L=0: 未開放、L=1: 開放",
+                GrowthStatId.SineMassRatio => "0.75 + 0.05 × L",
+                GrowthStatId.SineSpeed => "4.5 + 0.2 × √L",
+                GrowthStatId.SineFireRate => "1 + √(0.2 × L)",
                 _ => FormatLinearValueFormula(GetDefinition(id))
             };
         }
@@ -230,6 +313,32 @@ namespace GlassShooter.Gameplay
             {
                 return "Ceil(15000 × 1.05^L)";
             }
+            if (id == GrowthStatId.HammerUnlock || id == GrowthStatId.ShotgunUnlock ||
+                id == GrowthStatId.BounceUnlock || id == GrowthStatId.SineUnlock)
+            {
+                return definition.BaseCost.ToString();
+            }
+            if (id == GrowthStatId.HammerReach || id == GrowthStatId.HammerDrag)
+            {
+                return $"{definition.BaseCost} × (L + 1)^2";
+            }
+            if (id == GrowthStatId.ShotgunPelletMassRatio ||
+                id == GrowthStatId.ShotgunSpeed ||
+                id == GrowthStatId.ShotgunFireRate ||
+                id == GrowthStatId.BounceMassRatio ||
+                id == GrowthStatId.BounceSpeed)
+            {
+                return $"{definition.BaseCost} × 2^L";
+            }
+            if (id == GrowthStatId.ShotgunPelletCount ||
+                id == GrowthStatId.SearchLightMultiplier)
+            {
+                return $"{definition.BaseCost} × 5^L";
+            }
+            if (id == GrowthStatId.BounceCount)
+            {
+                return "80000 × 2^(L - 1)";
+            }
             return definition.MaximumLevel <= 0 || definition.BaseCost <= 0
                 ? "購入不可（未実装）"
                 : $"{definition.BaseCost} × (L + 1)";
@@ -253,6 +362,22 @@ namespace GlassShooter.Gameplay
                 GrowthStatId.SmallLightRange => 2f + 0.5f * Mathf.Pow(level, 2f / 3f),
                 GrowthStatId.SmallLightAngle => 2.5f + 0.1f * Mathf.Pow(level, 2f / 3f),
                 GrowthStatId.SmallLightShrink => Mathf.Pow(0.995f, level / 3f),
+                GrowthStatId.HammerUnlock or GrowthStatId.ShotgunUnlock or
+                    GrowthStatId.BounceUnlock or GrowthStatId.SineUnlock => level > 0 ? 1f : 0f,
+                GrowthStatId.HammerMassRatio => 3f + level,
+                GrowthStatId.HammerReach => 1f + 0.2f * level,
+                GrowthStatId.HammerDrag => 0.8f / Mathf.Pow(1.05f, level),
+                GrowthStatId.ShotgunPelletMassRatio => 0.3f + 0.05f * level,
+                GrowthStatId.ShotgunSpeed => 3f + 0.1f * level,
+                GrowthStatId.ShotgunFireRate => 0.2f * Mathf.Pow(1.04f, level),
+                GrowthStatId.ShotgunPelletCount => 3f + level,
+                GrowthStatId.BounceMassRatio => 0.8f + 0.05f * level,
+                GrowthStatId.BounceSpeed => 3.5f + Mathf.Sqrt(0.5f * level),
+                GrowthStatId.BounceCount => 1f + level,
+                GrowthStatId.SearchLightMultiplier => Mathf.Pow(1.1f, level),
+                GrowthStatId.SineMassRatio => 0.75f + 0.05f * level,
+                GrowthStatId.SineSpeed => 4.5f + 0.2f * Mathf.Sqrt(level),
+                GrowthStatId.SineFireRate => 1f + Mathf.Sqrt(0.2f * level),
                 _ => definition.BaseValue + definition.Step * level
             };
         }
@@ -285,6 +410,31 @@ namespace GlassShooter.Gameplay
                     ? int.MaxValue
                     : (long)Math.Ceiling(exponentialCost);
             }
+            else if (id == GrowthStatId.HammerUnlock || id == GrowthStatId.ShotgunUnlock ||
+                id == GrowthStatId.BounceUnlock || id == GrowthStatId.SineUnlock)
+            {
+                cost = definition.BaseCost;
+            }
+            else if (id == GrowthStatId.HammerReach || id == GrowthStatId.HammerDrag)
+            {
+                cost = SaturatingMultiply(
+                    definition.BaseCost,
+                    SaturatingMultiply(nextLevel, nextLevel));
+            }
+            else if (id == GrowthStatId.ShotgunPelletMassRatio ||
+                id == GrowthStatId.ShotgunSpeed ||
+                id == GrowthStatId.ShotgunFireRate ||
+                id == GrowthStatId.BounceMassRatio ||
+                id == GrowthStatId.BounceSpeed ||
+                id == GrowthStatId.BounceCount)
+            {
+                cost = SaturatingPowerCost(definition.BaseCost, 2L, GetLevel(id));
+            }
+            else if (id == GrowthStatId.ShotgunPelletCount ||
+                id == GrowthStatId.SearchLightMultiplier)
+            {
+                cost = SaturatingPowerCost(definition.BaseCost, 5L, GetLevel(id));
+            }
             else
             {
                 cost = SaturatingMultiply(definition.BaseCost, nextLevel);
@@ -297,8 +447,16 @@ namespace GlassShooter.Gameplay
             GrowthStatDefinition definition = Definitions[(int)id];
             if ((id == GrowthStatId.SmallLightRange ||
                 id == GrowthStatId.SmallLightAngle ||
-                id == GrowthStatId.SmallLightShrink) &&
+                id == GrowthStatId.SmallLightShrink ||
+                id == GrowthStatId.SearchLightMultiplier) &&
                 GetLevel(GrowthStatId.SmallLightUnlock) <= 0)
+            {
+                return false;
+            }
+            if (RequiresUnlock(id, GrowthStatId.HammerUnlock) ||
+                RequiresUnlock(id, GrowthStatId.ShotgunUnlock) ||
+                RequiresUnlock(id, GrowthStatId.BounceUnlock) ||
+                RequiresUnlock(id, GrowthStatId.SineUnlock))
             {
                 return false;
             }
@@ -321,7 +479,9 @@ namespace GlassShooter.Gameplay
 
         public string FormatValue(GrowthStatId id)
         {
-            if (id == GrowthStatId.SmallLightUnlock)
+            if (id == GrowthStatId.SmallLightUnlock ||
+                id == GrowthStatId.HammerUnlock || id == GrowthStatId.ShotgunUnlock ||
+                id == GrowthStatId.BounceUnlock || id == GrowthStatId.SineUnlock)
             {
                 return GetLevel(id) > 0 ? "開放" : "未開放";
             }
@@ -379,7 +539,9 @@ namespace GlassShooter.Gameplay
                 GetLevel(GrowthStatId.SmallLightUnlock) > 0,
                 GetValue(GrowthStatId.SmallLightRange),
                 GetValue(GrowthStatId.SmallLightAngle),
-                GetValue(GrowthStatId.SmallLightShrink));
+                GetValue(GrowthStatId.SmallLightShrink),
+                GetValue(GrowthStatId.SearchLightMultiplier));
+            target.ApplyWeaponGrowth(this);
         }
 
         private void Awake()
@@ -461,6 +623,33 @@ namespace GlassShooter.Gameplay
                 return 0L;
             }
             return left > long.MaxValue / right ? long.MaxValue : left * right;
+        }
+
+        private static long SaturatingPowerCost(long baseCost, long factor, int exponent)
+        {
+            long result = baseCost;
+            for (int i = 0; i < exponent; i++)
+            {
+                result = SaturatingMultiply(result, factor);
+                if (result == long.MaxValue)
+                {
+                    break;
+                }
+            }
+            return result;
+        }
+
+        private bool RequiresUnlock(GrowthStatId id, GrowthStatId unlockId)
+        {
+            bool belongsToWeapon = unlockId switch
+            {
+                GrowthStatId.HammerUnlock => id >= GrowthStatId.HammerMassRatio && id <= GrowthStatId.HammerDrag,
+                GrowthStatId.ShotgunUnlock => id >= GrowthStatId.ShotgunPelletMassRatio && id <= GrowthStatId.ShotgunPelletCount,
+                GrowthStatId.BounceUnlock => id >= GrowthStatId.BounceMassRatio && id <= GrowthStatId.BounceCount,
+                GrowthStatId.SineUnlock => id >= GrowthStatId.SineMassRatio && id <= GrowthStatId.SineFireRate,
+                _ => false
+            };
+            return belongsToWeapon && GetLevel(unlockId) <= 0;
         }
     }
 }

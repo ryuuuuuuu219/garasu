@@ -109,35 +109,39 @@ namespace GlassShooter.Gameplay
 
         internal void HandleProjectileImpactCore(Vector2 projectileWorldPosition, BulletStatus bulletStatus)
         {
-            if (isSeparating || isDestroyPending)
+            if (bulletStatus == null)
             {
+                Debug.LogWarning("Bullet impact was ignored because BulletStatus was null.", this);
                 return;
             }
-
-            EnsureGeometryInitialized();
-            // Triggerには接触点情報がないため、弾中心をガラス外周へ投影して代表接触点にする。
-            Vector2 projectileLocalPosition = transform.InverseTransformPoint(projectileWorldPosition);
-            Vector2 impactLocalPosition = GetClosestPointOnOutline(projectileLocalPosition);
-            Vector2 impactWorldPosition = transform.TransformPoint(impactLocalPosition);
-            HandleBulletImpact(impactWorldPosition, bulletStatus);
+            HandleImpactCore(ImpactEnergyContext.FromBullet(projectileWorldPosition, bulletStatus));
         }
 
         private float pooledImpactEnergy;
         internal void HandleBulletImpactCore(Vector2 impactWorldPosition, BulletStatus bulletStatus)
+        {
+            if (bulletStatus == null)
+            {
+                Debug.LogWarning("Bullet impact was ignored because BulletStatus was null.", this);
+                return;
+            }
+            HandleImpactCore(ImpactEnergyContext.FromBullet(impactWorldPosition, bulletStatus));
+        }
+
+        internal void HandleImpactCore(in ImpactEnergyContext context)
         {
             if (isSeparating || isDestroyPending)
             {
                 return;
             }
 
-            if (bulletStatus == null)
-            {
-                Debug.LogWarning("Bullet impact was ignored because BulletStatus was null.", this);
-                return;
-            }
-
-            // 以降のクラック計算は必ずローカル座標を使う。
-            Vector2 impactLocalPosition = transform.InverseTransformPoint(impactWorldPosition);
+            EnsureGeometryInitialized();
+            // Collisionの接触点とTriggerの代表点を同じ経路で外周へ投影する。
+            Vector2 requestedLocalPosition =
+                transform.InverseTransformPoint(context.WorldPosition);
+            Vector2 impactLocalPosition = GetClosestPointOnOutline(requestedLocalPosition);
+            Vector2 resolvedImpactWorldPosition =
+                transform.TransformPoint(impactLocalPosition);
 
             if (enemyDefeat == null &&
                 TryGetComponent(out GlassFragment _) &&
@@ -151,13 +155,16 @@ namespace GlassShooter.Gameplay
             float enemyEnergyMultiplier = glassStatus != null
                 ? glassStatus.EnemyCrackEnergyMultiplier
                 : 1f;
-            float newImpactEnergy = bulletStatus.CalculateKineticEnergy()
-                * bulletStatus.CrackConversionEfficiency
+            float searchLightMultiplier =
+                SmallLightComponent.GetActiveImpactMultiplier(resolvedImpactWorldPosition);
+            float newImpactEnergy = context.ImpactEnergy
+                * context.WeaponEfficiency
+                * searchLightMultiplier
                 * enemyEnergyMultiplier;
             float pooledBeforeImpact = pooledImpactEnergy;
             crackDiagnosticsLogger?.BeginImpact(
                 impactLocalPosition,
-                bulletStatus.CurrentVelocity,
+                context.ImpactVelocity,
                 newImpactEnergy,
                 pooledBeforeImpact,
                 CalculateScanRadius(newImpactEnergy + pooledBeforeImpact));
@@ -201,7 +208,7 @@ namespace GlassShooter.Gameplay
                     startNode.localPosition,
                     GetNodeDegree(startNode));
             }
-            Vector2 referenceDirection = ResolveReferenceDirection(startNode, bulletStatus.CurrentVelocity);
+            Vector2 referenceDirection = ResolveReferenceDirection(startNode, context.ImpactVelocity);
 
             float impactEnergy = newImpactEnergy + pooledImpactEnergy;
             float scanRadius = CalculateScanRadius(impactEnergy);
@@ -232,7 +239,7 @@ namespace GlassShooter.Gameplay
             bool preventsImpactShrink = enemyDefeat != null ||
                 TryGetComponent(out BossGlassComponent _);
             if (!preventsImpactShrink &&
-                !ApplySizeMultiplier(bulletStatus.ContactSizeMultiplier))
+                !ApplySizeMultiplier(context.ContactSizeMultiplier))
             {
                 crackDiagnosticsLogger?.EndImpact(
                     crackProgressed,

@@ -62,11 +62,13 @@ namespace GlassShooter.Gameplay
 
             if (crackTarget != null)
             {
-                crackTarget.HandleProjectileImpact(transform.position, bulletStatus);
+                crackTarget.HandleImpact(
+                    ImpactEnergyContext.FromBullet(transform.position, bulletStatus));
             }
             else
             {
-                fragmentTarget.ConsumeBullet(bulletStatus);
+                fragmentTarget.ConsumeImpact(
+                    ImpactEnergyContext.FromBullet(transform.position, bulletStatus));
             }
             Destroy(gameObject);
         }
@@ -87,11 +89,13 @@ namespace GlassShooter.Gameplay
                 Vector2 impactWorldPosition = collision.contactCount > 0
                     ? collision.GetContact(0).point
                     : (Vector2)transform.position;
-                crackTarget.HandleBulletImpact(impactWorldPosition, bulletStatus);
+                crackTarget.HandleImpact(
+                    ImpactEnergyContext.FromBullet(impactWorldPosition, bulletStatus));
             }
             else
             {
-                fragmentTarget.ConsumeBullet(bulletStatus);
+                fragmentTarget.ConsumeImpact(
+                    ImpactEnergyContext.FromBullet(transform.position, bulletStatus));
             }
             Destroy(gameObject);
         }

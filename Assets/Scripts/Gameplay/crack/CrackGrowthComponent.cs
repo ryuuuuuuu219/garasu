@@ -28,6 +28,11 @@ namespace GlassShooter.Gameplay
             Processing.HandleBulletImpactCore(impactWorldPosition, bulletStatus);
         }
 
+        internal void HandleImpact(in ImpactEnergyContext context)
+        {
+            Processing.HandleImpactCore(context);
+        }
+
         private CrackProcessingComponent Processing
         {
             get

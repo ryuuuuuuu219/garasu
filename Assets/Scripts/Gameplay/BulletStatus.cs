@@ -3,6 +3,47 @@ using UnityEngine;
 namespace GlassShooter.Gameplay
 {
     /// <summary>
+    /// 武器の種類やMonoBehaviourに依存しない、着弾1回分の入力値です。
+    /// サーチライト倍率と敵倍率は命中対象側で解決します。
+    /// </summary>
+    public readonly struct ImpactEnergyContext
+    {
+        public ImpactEnergyContext(
+            Vector2 worldPosition,
+            Vector2 impactVelocity,
+            float impactEnergy,
+            float weaponEfficiency,
+            float contactSizeMultiplier = 1f)
+        {
+            WorldPosition = worldPosition;
+            ImpactVelocity = impactVelocity;
+            ImpactEnergy = Mathf.Max(0f, impactEnergy);
+            WeaponEfficiency = Mathf.Max(0f, weaponEfficiency);
+            ContactSizeMultiplier = Mathf.Clamp01(contactSizeMultiplier);
+        }
+
+        public Vector2 WorldPosition { get; }
+        public Vector2 ImpactVelocity { get; }
+        public float ImpactEnergy { get; }
+        public float WeaponEfficiency { get; }
+        public float ContactSizeMultiplier { get; }
+
+        public static ImpactEnergyContext FromBullet(
+            Vector2 worldPosition,
+            BulletStatus bulletStatus)
+        {
+            return bulletStatus == null
+                ? default
+                : new ImpactEnergyContext(
+                    worldPosition,
+                    bulletStatus.CurrentVelocity,
+                    bulletStatus.CalculateKineticEnergy(),
+                    bulletStatus.CrackConversionEfficiency,
+                    bulletStatus.ContactSizeMultiplier);
+        }
+    }
+
+    /// <summary>
     /// クラック形成と縮小を同時に行う破砕弾の着弾計算用ステータスです。
     /// </summary>
     [DisallowMultipleComponent]

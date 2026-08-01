@@ -298,6 +298,12 @@ namespace GlassShooter.Gameplay
             growthComponent.HandleBulletImpact(impactWorldPosition, bulletStatus);
         }
 
+        public void HandleImpact(in ImpactEnergyContext context)
+        {
+            ResolveFeatureComponents();
+            growthComponent.HandleImpact(context);
+        }
+
         public bool TrySeparateAlongCrack(Vector2[] crack)
         {
             ResolveFeatureComponents();

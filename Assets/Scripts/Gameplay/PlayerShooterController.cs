@@ -40,6 +40,7 @@ namespace GlassShooter.Gameplay
         private PolygonCollider2D hitbox;
         private Vector2[][] baseHitboxPaths;
         private SmallLightComponent smallLight;
+        private AdditionalWeaponController additionalWeapons;
 
         public Vector2 MoveLimitMin => Movelimitmin;
         public Vector2 MoveLimitMax => Movelimitmax;
@@ -50,6 +51,10 @@ namespace GlassShooter.Gameplay
         public float FireInterval => bulletStatus != null && bulletStatus.FireRate > 0f
             ? 1f / bulletStatus.FireRate
             : fireInterval;
+        public Vector3 FireOrigin => firePoint != null ? firePoint.position : transform.position;
+        public Vector2 CurrentVelocity => playerRigidbody != null
+            ? playerRigidbody.linearVelocity
+            : Vector2.zero;
 
         /// <summary>成長画面で確定したプレイヤーステータスを反映します。</summary>
         public void ApplyGrowthStatus(
@@ -60,7 +65,8 @@ namespace GlassShooter.Gameplay
             bool smallLightUnlocked,
             float smallLightRange,
             float smallLightAngle,
-            float smallLightLinearMultiplierPerSecond)
+            float smallLightLinearMultiplierPerSecond,
+            float searchLightImpactMultiplier)
         {
             moveSpeed = Mathf.Max(0f, newMoveSpeed);
             fireInterval = Mathf.Max(0.01f, newFireInterval);
@@ -75,7 +81,14 @@ namespace GlassShooter.Gameplay
                 smallLightUnlocked,
                 smallLightRange,
                 smallLightAngle,
-                smallLightLinearMultiplierPerSecond);
+                smallLightLinearMultiplierPerSecond,
+                searchLightImpactMultiplier);
+        }
+
+        public void ApplyWeaponGrowth(GrowthStatusComponent growth)
+        {
+            EnsureAdditionalWeapons();
+            additionalWeapons.Configure(this, growth);
         }
 
         private void Awake()
@@ -91,6 +104,7 @@ namespace GlassShooter.Gameplay
             playerRigidbody.interpolation = RigidbodyInterpolation2D.Interpolate;
             CacheHitbox();
             EnsureSmallLight();
+            EnsureAdditionalWeapons();
             CreateBackgroundGrid();
 
             GameObject child = new GameObject("LineRenderer");
@@ -408,6 +422,18 @@ namespace GlassShooter.Gameplay
             smallLight = field.AddComponent<SmallLightComponent>();
         }
 
+        private void EnsureAdditionalWeapons()
+        {
+            if (additionalWeapons == null)
+            {
+                additionalWeapons = GetComponent<AdditionalWeaponController>();
+            }
+            if (additionalWeapons == null)
+            {
+                additionalWeapons = gameObject.AddComponent<AdditionalWeaponController>();
+            }
+        }
+
         private void Fire()
         {
             if (projectilePrefab == null || bulletStatus == null)
@@ -464,7 +490,8 @@ namespace GlassShooter.Gameplay
             bool unlocked,
             float range,
             float angleDegrees,
-            float newLinearMultiplierPerSecond)
+            float newLinearMultiplierPerSecond,
+            float newImpactMultiplier = 1f)
         {
             EnsureComponents();
 
@@ -478,6 +505,7 @@ namespace GlassShooter.Gameplay
             this.range = safeRange;
             this.angleDegrees = safeAngle;
             linearMultiplierPerSecond = Mathf.Clamp01(newLinearMultiplierPerSecond);
+            impactMultiplier = Mathf.Max(1f, newImpactMultiplier);
             if (geometryChanged)
             {
                 RebuildFieldGeometry();
@@ -488,6 +516,7 @@ namespace GlassShooter.Gameplay
 
         private void Awake()
         {
+            Active = this;
             EnsureComponents();
             RebuildFieldGeometry();
             ApplyActiveState();
@@ -633,6 +662,10 @@ namespace GlassShooter.Gameplay
 
         private void OnDestroy()
         {
+            if (Active == this)
+            {
+                Active = null;
+            }
             if (fieldMaterial != null)
             {
                 Destroy(fieldMaterial);

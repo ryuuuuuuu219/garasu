@@ -30,7 +30,12 @@ namespace GlassShooter.Gameplay
                 return;
             }
 
-            float multiplier = bulletStatus.ContactSizeMultiplier;
+            ConsumeImpact(ImpactEnergyContext.FromBullet(transform.position, bulletStatus));
+        }
+
+        public void ConsumeImpact(in ImpactEnergyContext context)
+        {
+            float multiplier = context.ContactSizeMultiplier;
             if (!Mathf.Approximately(multiplier, 1f))
             {
                 Destroy(gameObject);
