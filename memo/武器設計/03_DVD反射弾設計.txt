@@ -58,7 +58,8 @@ false~true|80000
 ・BouncingProjectile：境界とガラスの反射、接触中の攻撃判定
 ・BounceWeaponStatus：質量倍率、速度、個数
 ・画面境界Collider、または移動範囲座標を使った法線決定
-・既存クラック処理へエネルギーだけ投入する共通API
+・ImpactEnergyContextを受け取る共通クラック投入API
+  ImpactVelocityへ反射直前の実速度、ImpactEnergyへ1/2・m・v²、ContactSizeMultiplierへ1を設定する。
 ・GrowthStatIdへの反射弾用項目追加
 
 

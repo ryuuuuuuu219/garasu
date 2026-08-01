@@ -232,7 +232,10 @@ false~true|35000
   Collider接触、相対速度、投入エネルギー、同一フレーム重複除外。
 
 ・共通クラック投入API
-  BulletStatusを必須にせず、着弾位置と投入エネルギーを既存クラック処理へ渡す。
+  BulletStatusを必須にせず、ImpactEnergyContextを既存クラック処理へ渡す。
+  ハンマーはWorldPositionへ接触点、ImpactVelocityへヘッドと対象の相対速度、
+  ImpactEnergyへEImpact、WeaponEfficiencyへ通常弾共有のクラック変換効率、
+  ContactSizeMultiplierへ1を設定する。
 
 ・GrowthStatusComponent
   GrowthStatIdへハンマー用項目を追加し、ラン開始時に値を適用する。
@@ -245,7 +248,7 @@ false~true|35000
 3. GetIsClockwiseを回転中心との相対速度基準へ修正する。
 4. 自動回転と入力トルクは採用しないため、未使用のmoveForceを削除する。
 5. 接触点と対象速度からEImpactを計算する。
-6. 既存クラック処理へ任意の投入エネルギーを渡せる共通APIを追加する。
+6. 既存クラック処理へImpactEnergyContextを渡せる共通APIを追加する。
 7. 同一フレームの重複命中を除外する。
 8. GrowthStatusComponentへ開放、質量倍率、半径などを追加する。
 9. New Scene.unityの本番プレイヤーへ統合する。

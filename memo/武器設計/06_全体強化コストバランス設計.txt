@@ -51,6 +51,54 @@ TotalCost(N) = BaseCost*N*(N+1)/2
 追加武器でも同じ保存・購入基盤を使うなら、指数価格が上限へ達した後の扱いを統一する。
 
 
+◇◇共通命中APIの確定仕様
+
+CrackProcessingComponentはBulletStatusを直接受け取らず、着弾1回分の値だけを持つImpactEnergyContextを受け取る。
+
+ImpactEnergyContextのフィールド
+・Vector2 WorldPosition
+  着弾ワールド座標。Triggerで正確な接触点を取得できない場合は弾中心を渡す。
+・Vector2 ImpactVelocity
+  クラック方向と診断ログに使う速度。通常弾、散弾、DVD反射弾、へにょり弾は着弾直前の弾実速度、ハンマーはヘッドと対象の相対速度を渡す。
+・float ImpactEnergy
+  倍率適用前の基礎衝撃エネルギー。各武器の規則で計算し、0以上へ制限する。
+・float WeaponEfficiency
+  武器固有のクラック変換効率。0以上へ制限する。追加武器は通常弾のクラック変換効率を共有する。
+・float ContactSizeMultiplier
+  着弾時の線形寸法倍率。0～1へ制限する。通常弾は成長値を渡し、追加武器は既定値1を渡す。
+
+公開API
+HandleImpact(in ImpactEnergyContext context)
+
+共通命中処理の責務
+1. WorldPositionを命中対象の外周へ投影し、実際に処理へ使うResolvedImpactWorldPositionを求める。Collisionの接触点も同じ経路を通す。
+2. SmallLightComponentの現在有効なプレイヤー1機分のActive参照へResolvedImpactWorldPositionを渡し、GetImpactMultiplierを呼ぶ。毎着弾時にシーン検索しない。コンポーネント不在、未開放、範囲外、倍率レベル0では1を返す。
+3. 命中対象のGlassStatusからEnemyCrackEnergyMultiplierを取得する。
+4. 次の統一式でクラック投入エネルギーを計算する。
+   EInput = ImpactEnergy*WeaponEfficiency*SearchLightMultiplier*EnemyMultiplier
+5. ImpactVelocityをクラック進行方向と診断ログへ使用する。
+6. ContactSizeMultiplierを通常ガラスと分離済み破片へ適用する。敵本体とボス本体を縮小しない既存規則は維持する。
+
+SmallLightComponentの照会
+・現在のゲーム仕様はプレイヤー1機なので、SmallLightComponentは有効なActive参照を1つだけ保持する。
+・GetImpactMultiplierはResolvedImpactWorldPositionをローカル座標へ変換し、原点からの距離とローカル+Y軸からの角度で扇形包含を解析判定する。
+・Colliderの接触状態はサーチライト倍率判定に使用しない。
+
+サーチライト判定規則
+・isSpottedのboolは各武器から渡さない。
+・サーチライト倍率と敵倍率もImpactEnergyContextへ格納しない。
+・全武器が同じWorldPosition基準の照会を通るため、判定漏れと倍率の重複適用を防ぐ。
+
+既存通常弾の移行
+・ProjectileがBulletStatusからImpactEnergyContextを生成する。
+・WorldPositionは既存の接触点または弾中心を使用する。
+・ImpactVelocityはBulletStatus.CurrentVelocityを使用する。
+・ImpactEnergyはBulletStatus.CalculateKineticEnergy()を使用する。
+・WeaponEfficiencyはBulletStatus.CrackConversionEfficiencyを使用する。
+・ContactSizeMultiplierはBulletStatus.ContactSizeMultiplierを使用する。
+・移行中は既存HandleBulletImpactとHandleProjectileImpactを互換入口として残してもよいが、内部ではContextへ変換してHandleImpactだけを呼ぶ。最終的には武器側から直接HandleImpactを呼ぶ。
+
+
 ◇◇実装済み：通常弾
 
 ・質量

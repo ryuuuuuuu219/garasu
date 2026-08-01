@@ -63,7 +63,11 @@ L=0では1倍となり、増幅しない。
 ◇◇実装単位
 
 ・SmallLightComponent：既存の扇形領域に着弾位置の包含判定と増幅倍率を追加
-・ImpactEnergyContext：着弾位置、武器効率、サーチライト倍率、敵倍率
+・SmallLightComponentは現在有効なプレイヤー1機分のActive参照を公開し、共通命中処理から毎回シーン検索せず照会できるようにする
+・GetImpactMultiplierは着弾点をローカル座標へ変換し、距離と+Y軸からの角度で扇形包含を解析判定する
+・ImpactEnergyContext：WorldPosition、ImpactVelocity、ImpactEnergy、WeaponEfficiency、ContactSizeMultiplier
+・サーチライト倍率はImpactEnergyContextへ保持せず、共通命中処理がWorldPositionからSmallLightComponentへ照会する
+・敵倍率はImpactEnergyContextへ保持せず、命中対象のGlassStatusから共通命中処理が取得する
 ・GrowthStatIdへのサーチライト用項目追加
 
 
@@ -83,4 +87,5 @@ L=0では1倍となり、増幅しない。
 ・全武器で同じ処理順序になる。
 ・スモールライトの射程・角度強化がサーチライト判定にも反映される。
 ・ライト境界上の判定が物理フレームによって不安定にならない。
+・SmallLightComponentが存在しない場合、または未開放の場合は倍率1が返る。
 ・複数Colliderを持つ対象でも倍率が重複しない。

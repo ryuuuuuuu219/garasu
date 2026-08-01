@@ -86,7 +86,8 @@ false~true|40000
 
 ・SineWaveProjectile：発射原点、基準方向、経過時間、軌道計算
 ・SineWaveWeaponStatus：振幅、周波数、質量倍率
-・Projectileの命中処理を共通化して流用
+・命中時はImpactVelocityへ軌道の微分から得た実速度、ImpactEnergyへ1/2・m・|v(t)|²を設定する
+・ImpactEnergyContextを受け取る共通命中処理を流用
 ・GrowthStatIdへのへにょり弾用項目追加
 
 
