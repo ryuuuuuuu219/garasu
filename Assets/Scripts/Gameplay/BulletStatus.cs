@@ -55,7 +55,7 @@ namespace GlassShooter.Gameplay
         [SerializeField, Min(0f)] private float fireRate = 1f;
 
         [Header("Fracture")]
-        [SerializeField, Range(0f, 1f)] private float crackConversionEfficiency = 0.05f;
+        [SerializeField, Min(0f)] private float crackConversionEfficiency = 0.05f;
 
         [Header("Erosion")]
         [SerializeField, Range(0f, 1f)]
@@ -96,7 +96,7 @@ namespace GlassShooter.Gameplay
                 : Vector2.up;
             currentVelocity = direction * Mathf.Max(0f, speed);
             fireRate = Mathf.Max(0f, newFireRate);
-            crackConversionEfficiency = Mathf.Clamp01(newCrackConversionEfficiency);
+            crackConversionEfficiency = Mathf.Max(0f, newCrackConversionEfficiency);
             contactSizeMultiplier = Mathf.Clamp01(newContactSizeMultiplier);
         }
 
@@ -125,6 +125,7 @@ namespace GlassShooter.Gameplay
         {
             mass = Mathf.Max(0f, mass);
             fireRate = Mathf.Max(0f, fireRate);
+            crackConversionEfficiency = Mathf.Max(0f, crackConversionEfficiency);
             contactSizeMultiplier = Mathf.Clamp01(contactSizeMultiplier);
         }
     }

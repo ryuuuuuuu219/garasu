@@ -47,8 +47,7 @@ namespace GlassShooter.Gameplay
                 uncappedReach + GeometryEpsilon >= plan.longestPlannedCutLength &&
                 cutImpactEnergy > plan.totalCutLength;
             return ExecuteOverkillFragments(
-                triangleSatisfied ? plan.triangles : plan.radialRegions,
-                triangleSatisfied);
+                triangleSatisfied ? plan.triangles : plan.radialRegions);
         }
 
         private bool TryBuildOverkillPlan(Vector2 impact, out OverkillPlan plan)
@@ -280,7 +279,7 @@ namespace GlassShooter.Gameplay
             return inside;
         }
 
-        private bool ExecuteOverkillFragments(List<Vector2[]> regions, bool grantInstantReward)
+        private bool ExecuteOverkillFragments(List<Vector2[]> regions)
         {
             float minimumArea = glassStatus != null ? glassStatus.MinimumBreakableArea : 0.04f;
             float sourceWorldArea = CalculateWorldFragmentArea(Mathf.Abs(SignedArea(outline)));
@@ -367,14 +366,17 @@ namespace GlassShooter.Gameplay
                 fragments.Insert(0, gameObject);
             }
 
-            // 三角形化オーバーキルだけが即時報酬を持つ。落下回収分は各破片に残す。
-            if (grantInstantReward &&
-                fragments.Count > 0 &&
+            // 放射・三角形化の両オーバーキルで即時報酬を付与する。落下回収分は各破片に残す。
+            if (fragments.Count > 0 &&
                 ResourceComponent.Instance != null &&
                 (glassStatus == null || !glassStatus.IsResourceRewardSuppressed))
             {
                 float reward = sourceWorldArea * sourceWorldArea *
                     (1f + Mathf.Pow(1.01f, fragments.Count));
+                if (glassStatus != null)
+                {
+                    reward = glassStatus.CalculateResourceReward(reward);
+                }
                 ResourceComponent.Instance.Add(reward);
             }
 

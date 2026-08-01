@@ -107,7 +107,7 @@ namespace GlassShooter.Gameplay
             new(GrowthStatId.BulletMass, "弾幕・破砕弾強化", "質量強化", "破砕弾の質量を増加させます。運動エネルギー E=1/2・m・v² のmが増え、クラック進行能力と初回オーバーキル能力が上昇します。", 0.1f, 0f, int.MaxValue, 2),
             new(GrowthStatId.BulletSpeed, "弾幕・破砕弾強化", "初速強化", "破砕弾の飛行速度を増加させます。着弾までの時間が短くなり、速度の二乗に比例して運動エネルギーが増加します。", 4.5f, 0f, int.MaxValue, 1),
             new(GrowthStatId.BulletFireRate, "弾幕・破砕弾強化", "発射レート強化", "1秒あたりの発射回数を増加させます。実際の発射間隔は「1÷発射レート」秒です。", 1f, 0f, int.MaxValue, 5),
-            new(GrowthStatId.BulletCrackEfficiency, "弾幕・破砕弾強化", "クラック変換効率強化", "破砕弾の運動エネルギーからクラック進行へ変換される割合を増加させます。投入エネルギーは運動エネルギーにこの効率と敵ごとのエネルギー乗数を掛けた値です。", 0.05f, 0f, int.MaxValue, 2),
+            new(GrowthStatId.BulletCrackEfficiency, "弾幕・破砕弾強化", "クラック変換効率強化", "クラック進行へ使う変換効率をレベルごとに0.01増加させます。上限は設けません。投入エネルギーは運動エネルギーにこの効率と敵ごとのエネルギー乗数を掛けた値です。", 0.05f, 0.01f, int.MaxValue, 2),
             new(GrowthStatId.BulletContactSize, "弾幕・破砕弾強化", "縮小率強化", "着弾時にガラスへ適用する残存寸法倍率を低下させ、1発あたりの縮小量を増加させます。破壊を速め、弾道を阻む破片の排除に役立つ一方、残る破片の大きさにも影響します。", 1f, 0f, int.MaxValue, 20),
             new(GrowthStatId.GlassThickness, "ガラス", "厚さ", "ガラスの厚さです。破壊に必要なエネルギーへ影響します。", 1f, 0.1f, 20, 2),
             new(GrowthStatId.GlassDensity, "ガラス", "密度", "ガラスの単位体積あたりの質量です。", 1f, 0.1f, 20, 2),
@@ -260,7 +260,7 @@ namespace GlassShooter.Gameplay
             {
                 GrowthStatId.BulletMass => "0.1 + 0.01 × L",
                 GrowthStatId.BulletSpeed => "4.5 + 0.2 × √L",
-                GrowthStatId.BulletCrackEfficiency => "0.05 + 0.01 × √L",
+                GrowthStatId.BulletCrackEfficiency => "0.05 + 0.01 × L（上限制限なし）",
                 GrowthStatId.BulletFireRate => "1 + √(0.2 × L)",
                 GrowthStatId.BulletContactSize => "1 - 0.001 × L（適用時に0～1へ制限）",
                 GrowthStatId.PlayerHitboxScale => "0.2^max(L ÷ 1000, 1)",
@@ -352,7 +352,7 @@ namespace GlassShooter.Gameplay
             {
                 GrowthStatId.BulletMass => 0.1f + 0.01f * level,
                 GrowthStatId.BulletSpeed => 4.5f + 0.2f * Mathf.Sqrt(level),
-                GrowthStatId.BulletCrackEfficiency => 0.05f + 0.01f * Mathf.Sqrt(level),
+                GrowthStatId.BulletCrackEfficiency => 0.05f + 0.01f * level,
                 GrowthStatId.BulletFireRate => 1f + Mathf.Sqrt(0.2f * level),
                 GrowthStatId.BulletContactSize => 1f - 0.001f * level,
                 GrowthStatId.PlayerHitboxScale => Mathf.Pow(0.2f, Mathf.Max(level / 1000f, 1f)),

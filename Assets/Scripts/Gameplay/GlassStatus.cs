@@ -77,7 +77,7 @@ namespace GlassShooter.Gameplay
         public float FragmentFallSpeedMultiplier => fragmentFallSpeedMultiplier;
         public int DifficultyWave => difficultyWave;
         public float ResourceRewardMultiplier =>
-            1f + 0.235f * Mathf.Pow(difficultyWave, 1.8f);
+            1f + 0.2f * Mathf.Pow(difficultyWave, 2.8f);
         public float ResourceReward => CalculateResourceReward(resourceRewardArea);
         public bool IsResourceRewardSuppressed => isResourceRewardSuppressed;
 
